@@ -1,0 +1,18 @@
+shot_id: demo_bullet_time
+technique: orbit_bullet_time
+narrative_note: >
+  피사체가 무언가를 깨닫는 순간 — 시간이 멎고 카메라만 180도 돌며
+  표정을 포착. 오빗형 리빌과 달리 "숨은 공간"이 아니라 "감정의 정점"을
+  드러내는 용도라 arc_degrees는 짧게, duration은 1.5초 이내로 유지.
+params:
+  radius: 3.0
+  height: 1.6
+  arc_degrees: 180
+  duration_s: 1.5
+  fov_deg: 50
+
+subject_image_path: /content/subject_ref.png
+positive_prompt: >
+  cinematic photoreal subject, bullet time orbit shot, consistent identity,
+  sharp focus, frozen motion, dramatic lighting
+negative_prompt: blurry, distorted anatomy, extra limbs, low quality, motion blur on subject

@@ -13,19 +13,29 @@
 
 ## 빠른 시작
 
-### 1. 로컬 — 카메라 궤적 생성 (Blender/ComfyUI 불필요)
+### 1. 로컬 — 샷 매니페스트 작성 → 궤적 + 워크플로우 자동 생성
 
 ```bash
 pip install -r requirements.txt
-cd control
-python camera_paths.py   # 4종 데모 궤적을 presets/ 에 JSON으로 생성
+
+# input/cinematography_briefs/<shot_id>.yaml 로 연출 의도 + 기법 파라미터 작성
+# (demo_bullet_time.yaml 참고)
+
+python input/build_shot.py input/cinematography_briefs/<shot_id>.yaml
+# -> control/presets/<shot_id>.json      (카메라 궤적)
+# -> comfyui/workflows/<shot_id>.json    (ComfyUI 워크플로우)
 ```
 
-### 2. GitHub — 궤적 커밋 & 푸시
+기법 함수를 직접 실행해 4종 데모만 빠르게 보려면:
+```bash
+cd control && python camera_paths.py
+```
+
+### 2. GitHub — 산출물 커밋 & 푸시
 
 ```bash
-git add control/presets/<shot_id>.json
-git commit -m "add camera path: <shot_id>"
+git add control/presets/<shot_id>.json comfyui/workflows/<shot_id>.json
+git commit -m "add shot: <shot_id>"
 git push
 ```
 
@@ -37,7 +47,10 @@ git push
 ## 상태
 
 - ✅ `control/` — 로컬에서 실행 검증 완료 (4종 기법 전부 JSON 출력 확인)
-- ⚠️ `blender/`, `comfyui/`, `refinement/` — 코드 스켈레톤만 존재, **Colab
-  실제 실행으로 아직 검증 안 됨**. 노드 이름(class_type)·Blender 버전은
+- ✅ `input/build_shot.py` — 매니페스트 YAML 1장 → 궤적 JSON + ComfyUI 워크플로우
+  자동 생성, 로컬에서 end-to-end 검증 완료 (demo_bullet_time 기준)
+- ⚠️ `blender/`, `comfyui/`(워크플로우 실행 자체), `refinement/` — 코드는 있지만
+  **Colab 실제 실행으로 아직 검증 안 됨**. 노드 이름(class_type)·Blender 버전은
   실행 시 다를 수 있어 조정 필요.
-- 다음 단계: Colab에서 샷 1개 end-to-end 1차 실행 → 깨지는 지점 보정
+- 다음 단계: Colab에서 `demo_bullet_time` 1개 end-to-end 1차 실행 → 깨지는
+  지점 보정 (이 단계는 GPU/브라우저가 필요해 직접 실행해야 함)
