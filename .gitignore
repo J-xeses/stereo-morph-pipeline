@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+output/*
+!output/.gitkeep
+*.glb
+*.blend1
+.ipynb_checkpoints/
