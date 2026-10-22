@@ -117,6 +117,9 @@ def build_workflow(
                 "frame_rate": fps,
                 "filename_prefix": f"morph_{shot_id}",
                 "format": "video/h264-mp4",
+                "pingpong": False,
+                "save_output": True,
+                "loop_count": 0,
             },
         },
     }
