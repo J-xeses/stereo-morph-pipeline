@@ -64,6 +64,14 @@ def setup_compositor_for_depth_normal(out_dir: str):
     normal_out.format.file_format = "PNG"
     tree.links.new(rl.outputs["Normal"], normal_out.inputs[0])
 
+    # 디버그/CP용 컬러 렌더 — depth/normal과 달리 사람이 직접 보고 "카메라가
+    # 의도대로 도는지, 더미가 어떻게 생겼는지"를 확인하기 위한 패스.
+    beauty_out = tree.nodes.new("CompositorNodeOutputFile")
+    beauty_out.base_path = os.path.join(out_dir, "beauty")
+    beauty_out.file_slots[0].path = "beauty_"
+    beauty_out.format.file_format = "PNG"
+    tree.links.new(rl.outputs["Image"], beauty_out.inputs[0])
+
 
 def main():
     args = parse_args()
@@ -75,6 +83,15 @@ def main():
     bpy.ops.object.delete(use_global=False)
 
     bpy.ops.import_scene.gltf(filepath=args.mesh)
+
+    # depth/normal 패스는 조명이 필요 없지만, 사람이 카메라 궤적을 "눈으로"
+    # 확인하려면(CP1 다음의 비주얼 확인 단계) 실제 더미 실루엣이 찍힌 컬러
+    # 렌더가 있어야 한다 — 조명 없으면 완전 검은 화면만 나옴.
+    sun_data = bpy.data.lights.new(name="morph_sun", type="SUN")
+    sun_data.energy = 3.0
+    sun_obj = bpy.data.objects.new(name="morph_sun", object_data=sun_data)
+    bpy.context.scene.collection.objects.link(sun_obj)
+    sun_obj.rotation_euler = (0.9, 0.3, 0.8)
 
     cam_data = bpy.data.cameras.new("morph_camera")
     cam_obj = bpy.data.objects.new("morph_camera", cam_data)
