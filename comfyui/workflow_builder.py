@@ -90,6 +90,19 @@ def build_workflow(
             "class_type": "RepeatLatentBatch",
             "inputs": {"samples": ["8", 0], "amount": frame_count},
         },
+        "14": {
+            # mm_sd_v15_v2 모션모듈은 컨텍스트 윈도우 없이 최대 32프레임까지만 처리
+            # 가능 — 그 이상(긴 롱테이크 등)은 슬라이딩 윈도우로 잘라서 처리해야 함.
+            "class_type": "ADE_AnimateDiffUniformContextOptions",
+            "inputs": {
+                "context_length": 16,
+                "context_stride": 1,
+                "context_overlap": 4,
+                "context_schedule": "uniform",
+                "closed_loop": False,
+                "fuse_method": "pyramid",
+            },
+        },
         "9": {
             # AnimateDiff-Evolved 모션 모듈 — 배치 전체에 시간적 일관성 부여
             "class_type": "ADE_AnimateDiffLoaderGen1",
@@ -97,6 +110,7 @@ def build_workflow(
                 "model": ["1", 0],
                 "model_name": "mm_sd_v15_v2.ckpt",
                 "beta_schedule": "sqrt_linear (AnimateDiff)",
+                "context_options": ["14", 0],
             },
         },
         "10": {
