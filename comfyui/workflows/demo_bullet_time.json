@@ -34,13 +34,13 @@
     }
   },
   "5": {
-    "class_type": "ControlNetLoader",
+    "class_type": "ACN_ControlNetLoaderAdvanced",
     "inputs": {
-      "control_net_name": "control_v11f1p_sd15_depth.pth"
+      "cnet": "control_v11f1p_sd15_depth.pth"
     }
   },
   "6": {
-    "class_type": "ControlNetApplyAdvanced",
+    "class_type": "ACN_AdvancedControlNetApply",
     "inputs": {
       "positive": [
         "2",
@@ -82,6 +82,27 @@
       ]
     }
   },
+  "13": {
+    "class_type": "RepeatLatentBatch",
+    "inputs": {
+      "samples": [
+        "8",
+        0
+      ],
+      "amount": 36
+    }
+  },
+  "14": {
+    "class_type": "ADE_AnimateDiffUniformContextOptions",
+    "inputs": {
+      "context_length": 16,
+      "context_stride": 1,
+      "context_overlap": 4,
+      "context_schedule": "uniform",
+      "closed_loop": false,
+      "fuse_method": "pyramid"
+    }
+  },
   "9": {
     "class_type": "ADE_AnimateDiffLoaderGen1",
     "inputs": {
@@ -90,7 +111,11 @@
         0
       ],
       "model_name": "mm_sd_v15_v2.ckpt",
-      "beta_schedule": "sqrt_linear (AnimateDiff)"
+      "beta_schedule": "sqrt_linear (AnimateDiff)",
+      "context_options": [
+        "14",
+        0
+      ]
     }
   },
   "10": {
@@ -109,7 +134,7 @@
         1
       ],
       "latent_image": [
-        "8",
+        "13",
         0
       ],
       "seed": 0,
@@ -142,7 +167,10 @@
       ],
       "frame_rate": 24,
       "filename_prefix": "morph_demo_bullet_time",
-      "format": "video/h264-mp4"
+      "format": "video/h264-mp4",
+      "pingpong": false,
+      "save_output": true,
+      "loop_count": 0
     }
   }
 }

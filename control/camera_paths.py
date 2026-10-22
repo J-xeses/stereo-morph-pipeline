@@ -78,16 +78,23 @@ def _sample_times(duration_s: float, fps: int) -> list[tuple[int, float]]:
 
 def orbit_bullet_time(
     shot_id: str,
-    radius: float = 3.0,
-    height: float = 1.6,
-    arc_height: float = 0.4,
+    radius: float = 0.45,
+    height: float = 1.45,
+    arc_height: float = 0.08,
     subject_height: float = 1.6,
     arc_degrees: float = 180.0,
     duration_s: float = 1.5,
     fps: int = 24,
     fov_deg: float = 50.0,
 ) -> CameraPath:
+    # 불릿타임은 "표정을 포착"하는 얼굴 클로즈업 용도라 radius/height 기본값도
+    # 전신이 아니라 얼굴에 맞춰져 있어야 함 — CP3 실측(2026-10-22)에서 기본값이
+    # 3m/허리높이였을 때 참조 이미지(얼굴 클로즈업)와 depth 프레이밍이 안 맞아
+    # 괴상한 합성 아티팩트가 났던 걸 고침. look_at도 몸 중심(허리)이 아니라
+    # 머리 중심 높이를 보도록 — generate_dummy_mesh.py의 비율(머리중심 ≈ 키*0.915)과
+    # 맞춰뒀다.
     omega = math.radians(arc_degrees) / duration_s
+    head_center_z = subject_height * 0.915
     frames = []
     for f, t in _sample_times(duration_s, fps):
         angle = omega * t
@@ -97,7 +104,7 @@ def orbit_bullet_time(
                 frame=f,
                 time_s=t,
                 position=Vec3(x=radius * math.cos(angle), y=radius * math.sin(angle), z=z),
-                look_at=Vec3(x=0, y=0, z=subject_height * 0.5),
+                look_at=Vec3(x=0, y=0, z=head_center_z),
                 fov_deg=fov_deg,
             )
         )

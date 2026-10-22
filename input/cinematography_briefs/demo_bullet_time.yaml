@@ -5,8 +5,9 @@ narrative_note: >
   표정을 포착. 오빗형 리빌과 달리 "숨은 공간"이 아니라 "감정의 정점"을
   드러내는 용도라 arc_degrees는 짧게, duration은 1.5초 이내로 유지.
 params:
-  radius: 3.0
-  height: 1.6
+  radius: 0.45
+  height: 1.45
+  arc_height: 0.08
   arc_degrees: 180
   duration_s: 1.5
   fov_deg: 50
