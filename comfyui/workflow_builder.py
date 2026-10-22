@@ -82,6 +82,14 @@ def build_workflow(
             "class_type": "VAEEncode",
             "inputs": {"pixels": ["7", 0], "vae": ["1", 2]},
         },
+        "13": {
+            # 피사체 이미지는 1장뿐이라 VAEEncode 출력도 배치 1 — AnimateDiff가
+            # 36프레임 전체(=ControlNet depth 배치 크기)를 생성하려면 latent도
+            # 같은 배치 크기로 복제해야 함. 이게 없으면 배치 크기 불일치로
+            # 샘플링이 깨져 완전 노이즈가 나온다.
+            "class_type": "RepeatLatentBatch",
+            "inputs": {"samples": ["8", 0], "amount": frame_count},
+        },
         "9": {
             # AnimateDiff-Evolved 모션 모듈 — 배치 전체에 시간적 일관성 부여
             "class_type": "ADE_AnimateDiffLoaderGen1",
@@ -97,7 +105,7 @@ def build_workflow(
                 "model": ["9", 0],
                 "positive": ["6", 0],
                 "negative": ["6", 1],
-                "latent_image": ["8", 0],
+                "latent_image": ["13", 0],
                 "seed": seed,
                 "steps": steps,
                 "cfg": cfg,
