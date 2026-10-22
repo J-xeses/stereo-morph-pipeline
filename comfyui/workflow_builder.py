@@ -27,7 +27,7 @@ def build_workflow(
     negative_prompt: str = "blurry, distorted anatomy, extra limbs, low quality",
     frame_count: int = 36,
     fps: int = 24,
-    checkpoint_name: str = "sd_xl_base_1.0.safetensors",
+    checkpoint_name: str = "v1-5-pruned-emaonly.safetensors",
     controlnet_name: str = "control_v11f1p_sd15_depth.pth",
     denoise: float = 0.75,
     steps: int = 20,
