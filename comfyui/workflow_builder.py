@@ -10,8 +10,10 @@ ComfyUI-VideoHelperSuite, ComfyUI_ControlNet_AUX) 버전에 따라 바뀐다. �
 
 필요 커스텀 노드팩 (Colab 셀에서 git clone):
   - ComfyUI-AnimateDiff-Evolved
-  - ComfyUI-VideoHelperSuite  (이미지 시퀀스 로드/영상 합성)
-  - ComfyUI_Controlnet_Aux    (불필요할 수 있음 — depth는 이미 Blender가 렌더함)
+  - ComfyUI-VideoHelperSuite    (이미지 시퀀스 로드/영상 합성)
+  - ComfyUI-Advanced-ControlNet (AnimateDiff 컨텍스트 윈도우와 호환되는 ControlNet 노드.
+                                  코어 ControlNetLoader/ControlNetApplyAdvanced는
+                                  슬라이딩 윈도우 미지원이라 32프레임 넘어가면 런타임 에러남)
 """
 from __future__ import annotations
 
@@ -59,11 +61,14 @@ def build_workflow(
             },
         },
         "5": {
-            "class_type": "ControlNetLoader",
-            "inputs": {"control_net_name": controlnet_name},
+            # 코어 ControlNetLoader는 AnimateDiff 컨텍스트 윈도우(슬라이딩)를
+            # 지원 안 함 — Advanced-ControlNet(Kosinkadink)의 Advanced 로더/적용
+            # 노드로 교체.
+            "class_type": "ACN_ControlNetLoaderAdvanced",
+            "inputs": {"cnet": controlnet_name},
         },
         "6": {
-            "class_type": "ControlNetApplyAdvanced",
+            "class_type": "ACN_AdvancedControlNetApply",
             "inputs": {
                 "positive": ["2", 0],
                 "negative": ["3", 0],
