@@ -88,6 +88,26 @@ def main():
     scene.frame_start = 0
     scene.frame_end = len(camera_path["frames"]) - 1
 
+    # EEVEE는 헤드리스 Colab에서 GPU 디스플레이 컨텍스트를 못 잡아
+    # (EGL_BAD_MATCH) 조용히 CPU 소프트웨어 렌더로 폴백 — 프레임당 60초+로 느림.
+    # Cycles+CUDA는 디스플레이 컨텍스트 없이도 GPU 연산기를 직접 쓸 수 있어
+    # 헤드리스 환경에 적합. depth/normal pass는 조명 품질이 필요 없으므로
+    # 샘플 수를 최소로 낮춰 추가로 가속한다.
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = 4
+    scene.cycles.use_denoising = False
+    try:
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+        prefs.compute_device_type = "CUDA"
+        prefs.get_devices()
+        for device in prefs.devices:
+            device.use = device.type in ("CUDA", "CPU")
+        scene.cycles.device = "GPU"
+        print("Cycles GPU devices:", [(d.name, d.type, d.use) for d in prefs.devices])
+    except Exception as e:
+        print(f"GPU 설정 실패, CPU로 진행: {e}")
+        scene.cycles.device = "CPU"
+
     for fr in camera_path["frames"]:
         frame_idx = fr["frame"]
         pos = fr["position"]
