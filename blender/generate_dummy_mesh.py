@@ -35,31 +35,56 @@ def clear_scene():
 
 
 def build_dummy_human(height: float):
-    """캡슐(동체+다리) + 구(머리)로 된 휴먼 프록시. 바닥(z=0)에 발이 닿도록 배치."""
+    """캡슐(동체+다리) + 구(머리)로 된 휴먼 프록시. 바닥(z=0)에 발이 닿도록 배치.
+
+    원통+구는 회전축(Z) 기준으로 완벽히 대칭이라, 카메라가 주위를 돌아도
+    depth pass가 각도와 무관하게 거의 동일하게 나온다(CP3 실측으로 발견 —
+    불릿타임/회전 롱테이크에서 카메라가 도는데도 결과물이 정지해 보이는
+    원인이었음). 앞뒤 방향으로 납작하게 눌러 타원형으로 만들고 코 돌기를
+    추가해, 각도마다 실루엣이 실제로 달라지도록 비대칭을 준다.
+    """
     leg_h = height * 0.5
     torso_h = height * 0.35
     head_r = height * 0.065
+
+    def flatten_front_back(obj, y_scale):
+        obj.scale = (1.0, y_scale, 1.0)
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
     bpy.ops.mesh.primitive_cylinder_add(
         radius=height * 0.08, depth=leg_h, location=(0, 0, leg_h / 2)
     )
     legs = bpy.context.active_object
     legs.name = "dummy_legs"
+    flatten_front_back(legs, 0.6)
 
     bpy.ops.mesh.primitive_cylinder_add(
         radius=height * 0.14, depth=torso_h, location=(0, 0, leg_h + torso_h / 2)
     )
     torso = bpy.context.active_object
     torso.name = "dummy_torso"
+    flatten_front_back(torso, 0.6)
 
     bpy.ops.mesh.primitive_uv_sphere_add(
         radius=head_r, location=(0, 0, leg_h + torso_h + head_r)
     )
     head = bpy.context.active_object
     head.name = "dummy_head"
+    flatten_front_back(head, 0.75)
+
+    # 코 역할의 작은 돌기 — 정면/측면/후면을 depth만으로도 구분 가능하게 함
+    bpy.ops.mesh.primitive_cone_add(
+        radius1=head_r * 0.18,
+        depth=head_r * 0.35,
+        location=(0, -head_r * 0.95, leg_h + torso_h + head_r),
+        rotation=(1.5708, 0, 0),
+    )
+    nose = bpy.context.active_object
+    nose.name = "dummy_nose"
 
     bpy.ops.object.select_all(action="DESELECT")
-    for obj in (legs, torso, head):
+    for obj in (legs, torso, head, nose):
         obj.select_set(True)
     bpy.context.view_layer.objects.active = torso
     bpy.ops.object.join()
