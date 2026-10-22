@@ -3,3 +3,4 @@
 # colab/stereo_morph_pipeline.ipynb 안에서 Colab 세션별로 설치한다(로컬에 안 깖).
 pydantic>=2.0
 pyyaml>=6.0
+matplotlib>=3.7

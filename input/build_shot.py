@@ -62,7 +62,16 @@ def main():
     preset_path = ROOT / "control" / "presets" / f"{manifest.shot_id}.json"
     preset_path.parent.mkdir(parents=True, exist_ok=True)
     path.to_json_file(str(preset_path))
-    print(f"[1/2] 카메라 궤적: {preset_path} ({path.frame_count} frames, {manifest.technique})")
+    print(f"[1/3] 카메라 궤적: {preset_path} ({path.frame_count} frames, {manifest.technique})")
+
+    try:
+        preview = _load_module_from_dir(
+            ROOT / "control", "preview_camera_path.py", "_cmp_preview_camera_path"
+        )
+        preview_path = preview.preview(str(preset_path))
+        print(f"[2/3] CP1 궤적 프리뷰: {preview_path}  <- 열어서 의도대로인지 확인 후 진행할 것")
+    except ImportError:
+        print("[2/3] CP1 프리뷰 생략 — matplotlib 미설치 (pip install matplotlib)")
 
     workflow_builder = _load_module_from_dir(
         ROOT / "comfyui", "workflow_builder.py", "_cmp_workflow_builder"
@@ -78,7 +87,7 @@ def main():
         frame_count=path.frame_count,
         fps=path.fps,
     )
-    print(f"[2/2] ComfyUI 워크플로우: {workflow_path}")
+    print(f"[3/3] ComfyUI 워크플로우: {workflow_path}")
     print(
         f"\n다음: git add control/presets/{manifest.shot_id}.json "
         f"comfyui/workflows/{manifest.shot_id}.json && git commit && git push"

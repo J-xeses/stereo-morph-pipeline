@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 output/*
 !output/.gitkeep
+control/presets/*_preview.png
 *.glb
 *.blend1
 .ipynb_checkpoints/
