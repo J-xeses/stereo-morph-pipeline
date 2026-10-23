@@ -68,8 +68,12 @@ def main():
         preview = _load_module_from_dir(
             ROOT / "control", "preview_camera_path.py", "_cmp_preview_camera_path"
         )
-        preview_path = preview.preview(str(preset_path))
-        print(f"[2/3] CP1 궤적 프리뷰: {preview_path}  <- 열어서 의도대로인지 확인 후 진행할 것")
+        cp1_dir = ROOT / "output" / manifest.shot_id / "cp1_trajectory_preview"
+        cp1_dir.mkdir(parents=True, exist_ok=True)
+        preview_path = preview.preview(str(preset_path), out_path=str(cp1_dir / "preview.png"))
+        print(
+            f"[2/3] CP1 궤적 프리뷰: {preview_path}  <- server/app.py 모니터(localhost:4100)에서 바로 확인 가능"
+        )
     except ImportError:
         print("[2/3] CP1 프리뷰 생략 — matplotlib 미설치 (pip install matplotlib)")
 

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>stereo-morph-pipeline 모니터</title>
+<style>
+  :root { color-scheme: dark; --bg:#14161a; --panel:#1d2026; --border:#2b2f38; --text:#e7e9ee; --muted:#9aa2b1; --accent:#5b8cff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family: -apple-system, "Segoe UI", sans-serif; }
+  header { padding: 16px 20px; border-bottom: 1px solid var(--border); display:flex; align-items:center; gap:12px; }
+  header h1 { font-size: 16px; margin:0; font-weight:600; }
+  header .hint { color: var(--muted); font-size: 13px; }
+  main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+  .shot { border:1px solid var(--border); border-radius:10px; margin-bottom:24px; background:var(--panel); overflow:hidden; }
+  .shot-title { padding:12px 16px; font-weight:600; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+  .stages { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:1px; background:var(--border); }
+  .stage { background:var(--panel); padding:14px; min-height:160px; }
+  .stage h3 { font-size:13px; color:var(--muted); margin:0 0 10px; font-weight:600; }
+  .stage .empty { color:var(--muted); font-size:12px; padding: 24px 0; text-align:center; border:1px dashed var(--border); border-radius:8px; }
+  .stage img, .stage video { width:100%; border-radius:6px; display:block; margin-bottom:8px; cursor:pointer; background:#000; }
+  .upload-row { margin-top:8px; }
+  .upload-row input[type=file] { font-size:11px; color:var(--muted); max-width: 100%; }
+  .status { font-size:11px; color: var(--accent); margin-top:4px; min-height: 14px; }
+  .lightbox { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:50; padding:24px; }
+  .lightbox.open { display:flex; }
+  .lightbox img, .lightbox video { max-width:100%; max-height:100%; border-radius:8px; }
+  .lightbox-close { position:absolute; top:16px; right:20px; color:#fff; font-size:28px; cursor:pointer; background:none; border:none; }
+  .empty-state { text-align:center; color:var(--muted); padding: 60px 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>stereo-morph-pipeline 모니터</h1>
+  <span class="hint">output/&lt;shot_id&gt;/cp1~cp4 를 자동 스캔 — 15초마다 새로고침</span>
+</header>
+<main id="main">
+  <div class="empty-state">불러오는 중…</div>
+</main>
+
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+  <div id="lightbox-content"></div>
+</div>
+
+<script>
+const STAGE_ORDER = ["cp1_trajectory_preview", "cp2_hero_frame", "cp3_segments", "cp4_final"];
+
+async function load() {
+  const res = await fetch("/api/shots");
+  const shots = await res.json();
+  const main = document.getElementById("main");
+  if (!shots.length) {
+    main.innerHTML = '<div class="empty-state">아직 output/ 아래 샷 폴더가 없습니다.<br>Colab에서 받은 결과물을 output/&lt;shot_id&gt;/cp1_trajectory_preview 등에 넣어주세요.</div>';
+    return;
+  }
+  main.innerHTML = shots.map(renderShot).join("");
+}
+
+function renderShot(shot) {
+  const stages = STAGE_ORDER.map(key => renderStage(shot.shot_id, key, shot.stages[key])).join("");
+  return `<div class="shot">
+    <div class="shot-title"><span>${shot.shot_id}</span></div>
+    <div class="stages">${stages}</div>
+  </div>`;
+}
+
+function renderStage(shotId, key, stage) {
+  if (!stage) return "";
+  const body = stage.files.length
+    ? stage.files.map(url => mediaTag(stage.kind, url)).join("")
+    : '<div class="empty">아직 없음</div>';
+  return `<div class="stage">
+    <h3>${stage.label}</h3>
+    ${body}
+    <div class="upload-row">
+      <input type="file" accept="${stage.kind === 'image' ? 'image/*' : 'video/*'}"
+             onchange="uploadSubstitute(this, '${shotId}', '${key}')" />
+      <div class="status" id="status-${shotId}-${key}"></div>
+    </div>
+  </div>`;
+}
+
+function mediaTag(kind, url) {
+  if (kind === "image") {
+    return `<img src="${url}" onclick="openLightbox('image','${url}')" />`;
+  }
+  return `<video src="${url}" controls onclick="this.paused ? this.play() : null"></video>`;
+}
+
+function openLightbox(kind, url) {
+  const content = document.getElementById("lightbox-content");
+  content.innerHTML = kind === "image"
+    ? `<img src="${url}" />`
+    : `<video src="${url}" controls autoplay></video>`;
+  document.getElementById("lightbox").classList.add("open");
+}
+function closeLightbox() {
+  document.getElementById("lightbox").classList.remove("open");
+  document.getElementById("lightbox-content").innerHTML = "";
+}
+
+async function uploadSubstitute(input, shotId, stageKey) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById(`status-${shotId}-${stageKey}`);
+  statusEl.textContent = "업로드 중…";
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    const res = await fetch(`/api/shots/${shotId}/${stageKey}/upload`, { method: "POST", body: form });
+    if (!res.ok) throw new Error(await res.text());
+    statusEl.textContent = "교체 완료";
+    load();
+  } catch (e) {
+    statusEl.textContent = "실패: " + e.message;
+  }
+}
+
+load();
+setInterval(load, 15000);
+</script>
+</body>
+</html>

@@ -94,7 +94,15 @@ stereo-morph-pipeline/
 │   └── refine.py                 (업스케일/보간/얼굴복원 체인 — Colab 전용 실행)
 ├── colab/
 │   └── stereo_morph_pipeline.ipynb (마스터 노트북 — 전 과정 실행)
-├── output/                        (Colab에서 받은 최종 결과물 — git 미추적)
+├── server/                        (CP1~CP4 모니터 앱 — 로컬 전용, §6-1 참고)
+│   ├── app.py                     (FastAPI: output/ 스캔 + 파일 교체 업로드)
+│   └── static/index.html          (브라우저 대시보드)
+├── output/                        (Colab에서 받은 결과물 — git 미추적)
+│   └── <shot_id>/
+│       ├── cp1_trajectory_preview/   (이미지)
+│       ├── cp2_hero_frame/           (이미지)
+│       ├── cp3_segments/             (영상, 세그먼트별 여러 개)
+│       └── cp4_final/                (영상, 체이닝 최종본)
 ├── requirements.txt
 └── .gitignore
 ```
@@ -141,6 +149,21 @@ yeori-studio의 G1~G5 게이트 정책(`[[project_gate_approval_policy]]`: 시�
 CP1·CP2·CP4는 자동화 대상이 아니라 "설계상 사람 자리"임을 명확히 해둔다 —
 나중에 효율화한다고 이 세 지점을 자동 승인으로 바꾸면, 업계가 아직 못 푼 문제를
 혼자 풀었다고 착각하는 꼴이 된다.
+
+### 6-1. CP1~CP4 모니터 앱 (2026-10-23 추가)
+
+위 표가 "사람이 봐야 한다"를 정했지만, 실제로 Claude가 ffmpeg로 프레임만 뽑아
+혼자 보고 "괜찮다"고 보고하는 식으로는 사람이 보는 게 아니다 — 이 간극을 메우려고
+`server/app.py`(FastAPI, `python server/app.py` 실행 → `localhost:4100`)에 가벼운
+로컬 대시보드를 둔다. `output/<shot_id>/cp1_trajectory_preview/` 등 4개 하위폴더를
+스캔해서 브라우저에 CP1~CP4 순서로 쭉 보여주고, 각 단계마다 파일을 직접 업로드해서
+교체("대입")할 수 있다. yeori-studio(Node, localhost:3001류)와는 완전히 분리된
+별도 Python 서버·별도 포트(:4100) — 두 프로젝트를 섞지 않는다는 기존 원칙 유지.
+
+**아직 안 된 것**: Colab 노트북이 Drive/로컬로 결과를 내려받을 때 이 폴더 구조
+(`cp1_trajectory_preview/`, `cp2_hero_frame/`, `cp3_segments/`, `cp4_final/`)에
+맞춰 자동으로 떨어지도록 하는 연결 — 지금은 받은 파일을 이 구조에 맞게 수동으로
+넣어야 화면에 뜬다. 다음 Colab 실행 때 마지막 셀에 이 복사 로직을 추가할 것.
 
 ## 7. 다음 결정 지점
 
