@@ -107,13 +107,26 @@ def main():
         fps=path.fps,
     )
     if manifest.backend == "wan_vace":
-        workflow_builder.write_workflow_json(
-            str(workflow_path),
-            backend="wan_vace",
+        vace_kwargs = dict(
             width=manifest.vace_width,
             height=manifest.vace_height,
             reference_strength=manifest.reference_strength,
+        )
+        # steps/cfg/sampler_name/... 은 None이면(브리프에 미지정) workflow_builder
+        # 자체 기본값을 그대로 쓰도록 생략 — 모니터 앱 VACE 파라미터 패널에서만
+        # 실제로 다른 값을 보낸다.
+        for opt_key in (
+            "steps", "cfg", "sampler_name", "scheduler", "model_shift", "seed",
+            "diffusion_model_name", "vae_name", "clip_name",
+        ):
+            val = getattr(manifest, opt_key, None)
+            if val is not None:
+                vace_kwargs[opt_key] = val
+        workflow_builder.write_workflow_json(
+            str(workflow_path),
+            backend="wan_vace",
             **common_kwargs,
+            **vace_kwargs,
         )
     else:
         workflow_builder.write_workflow_json(

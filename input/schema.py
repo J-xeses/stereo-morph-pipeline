@@ -52,3 +52,24 @@ class ShotManifest(BaseModel):
     )
     vace_width: int = Field(default=480, description="backend=wan_vace 전용, 16의 배수")
     vace_height: int = Field(default=640, description="backend=wan_vace 전용, 16의 배수")
+
+    # 2026-10-25 — 모니터 앱 "VACE 생성 파라미터" 패널에서 직접 조정 가능하도록 노출.
+    # None이면 workflow_builder.build_workflow_vace()의 자체 기본값(steps=20, cfg=6.0,
+    # sampler_name="uni_pc", scheduler="simple", model_shift=8.0, seed=0)을 그대로 쓴다 —
+    # 기존 브리프 yaml에 이 필드들이 없어도 동작이 바뀌지 않아야 해서 전부 Optional.
+    steps: int | None = Field(default=None, description="backend=wan_vace 전용, 샘플링 스텝 수")
+    cfg: float | None = Field(default=None, description="backend=wan_vace 전용, CFG scale")
+    sampler_name: str | None = Field(default=None, description="backend=wan_vace 전용, 기본은 uni_pc")
+    scheduler: str | None = Field(default=None, description="backend=wan_vace 전용, 기본은 simple")
+    model_shift: float | None = Field(
+        default=None, description="backend=wan_vace 전용, ModelSamplingSD3 shift 값"
+    )
+    seed: int | None = Field(default=None, description="backend=wan_vace 전용, 0이면 매 실행 고정")
+    diffusion_model_name: str | None = Field(
+        default=None,
+        description="backend=wan_vace 전용(고급). Colab ComfyUI models/diffusion_models/에 "
+        "실제로 그 파일명이 있어야만 동작 — 기본값(wan2.1_vace_1.3B_fp16.safetensors) 그대로 "
+        "두는 걸 권장.",
+    )
+    vae_name: str | None = Field(default=None, description="backend=wan_vace 전용(고급), 위와 동일 주의")
+    clip_name: str | None = Field(default=None, description="backend=wan_vace 전용(고급), 위와 동일 주의")

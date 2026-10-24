@@ -36,6 +36,8 @@ input/build_shot.py 를 그 자리에서 재실행한다 — 즉 reference_stren
 """
 from __future__ import annotations
 
+import importlib.util
+import inspect
 import json
 import subprocess
 import sys
@@ -76,6 +78,69 @@ VALID_STATUSES = {"pending", "approved", "rejected"}
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 VIDEO_EXT = {".mp4", ".webm", ".mov"}
+
+TECHNIQUE_LABELS = {
+    "orbit_bullet_time": "① 불릿타임(오빗)",
+    "rotating_long_take": "② 회전 롱테이크",
+    "continuous_long_take": "③ 연속 롱테이크",
+    "loop_flight": "④ 예측불가 카메라 루프 비행",
+}
+
+# VACE 엔진(WanVaceToVideo) 쪽 노브 — control/camera_paths.py의 "연출 기법" 파라미터와는
+# 레이어가 다르다(②제어 vs ③생성). build_workflow_vace()의 실제 함수 시그니처 기본값과
+# 항상 같은 값을 쓴다 — 아래 _vace_param_schema()가 그 함수를 직접 inspect해서 뽑으므로
+# 여기서 숫자를 다시 베껴 적지 않는다.
+VACE_ADVANCED_FIELDS = {"diffusion_model_name", "vae_name", "clip_name"}
+
+
+def _load_module_from_dir(dir_path: Path, module_filename: str, module_name: str):
+    """input/build_shot.py와 동일한 트릭 — control/schema.py와 input/schema.py가
+    이름이 같아서 둘 다 sys.path에 얹으면 import가 충돌하므로, 한 폴더씩만 얹고
+    바로 되돌린다."""
+    original_path = list(sys.path)
+    sys.path.insert(0, str(dir_path))
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, dir_path / module_filename)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.path = original_path
+
+
+def _param_schema_from_signature(fn, skip: set[str]) -> dict[str, dict[str, Any]]:
+    fields = {}
+    for pname, p in inspect.signature(fn).parameters.items():
+        if pname in skip:
+            continue
+        required = p.default is inspect.Parameter.empty
+        fields[pname] = {
+            "default": None if required else p.default,
+            "required": required,
+            "type": "list_vec3" if pname == "waypoints" else type(p.default).__name__ if not required else "float",
+        }
+    return fields
+
+
+def _technique_schema() -> dict[str, dict[str, Any]]:
+    camera_paths = _load_module_from_dir(ROOT / "control", "camera_paths.py", "_cmp_camera_paths_monitor")
+    schema = {}
+    for name, label in TECHNIQUE_LABELS.items():
+        fn = getattr(camera_paths, name)
+        schema[name] = {"label": label, "fields": _param_schema_from_signature(fn, skip={"shot_id"})}
+    return schema
+
+
+def _vace_param_schema() -> dict[str, dict[str, Any]]:
+    workflow_builder = _load_module_from_dir(ROOT / "comfyui", "workflow_builder.py", "_cmp_workflow_builder_monitor")
+    skip = {"shot_id", "depth_pass_dir", "subject_image_path", "positive_prompt", "negative_prompt", "frame_count", "fps"}
+    return _param_schema_from_signature(workflow_builder.build_workflow_vace, skip=skip)
+
+
+# 둘 다 소스 파일이 바뀌지 않는 한 고정값이라 요청마다 다시 inspect할 필요 없음.
+TECHNIQUE_SCHEMA = _technique_schema()
+VACE_PARAM_SCHEMA = _vace_param_schema()
 
 _yaml = YAML()
 _yaml.preserve_quotes = True
@@ -232,6 +297,15 @@ async def substitute_file(shot_id: str, stage_key: str, file: UploadFile = File(
     return {"saved": f"/files/{shot_id}/{stage_key}/{file.filename}"}
 
 
+@app.get("/api/techniques")
+def list_techniques():
+    """control/camera_paths.py의 4종 기법 + ComfyUI Wan2.1-VACE 엔진 파라미터를
+    함수 시그니처에서 직접 뽑아 반환 — 사이드바의 "기법 둘러보기"와 파라미터
+    패널의 기법별 폼이 이 응답 하나로 그려진다. 코드가 바뀌면 여기도 자동으로
+    맞춰지므로 숫자를 이 파일에 따로 베껴 적지 않는다."""
+    return {"techniques": TECHNIQUE_SCHEMA, "vace_params": VACE_PARAM_SCHEMA}
+
+
 @app.get("/api/shots/{shot_id}/params")
 def get_params(shot_id: str):
     brief_path = BRIEFS_DIR / f"{shot_id}.yaml"
@@ -254,11 +328,11 @@ def update_params(shot_id: str, payload: dict):
     nested_params = payload.pop("params", None)
     for k, v in payload.items():
         data[k] = v
-    if nested_params:
-        if "params" not in data:
-            data["params"] = {}
-        for k, v in nested_params.items():
-            data["params"][k] = v
+    if nested_params is not None:
+        # 부분 병합이 아니라 전체 교체 — technique을 바꾸면 이전 기법의 파라미터
+        # 이름(예: radius/height)이 새 기법 함수가 모르는 인자로 남아 build_shot.py가
+        # TypeError로 죽는다. 폼은 항상 현재 기법의 전체 필드를 보내므로 교체가 맞다.
+        data["params"] = nested_params
 
     with brief_path.open("w", encoding="utf-8") as f:
         _yaml.dump(data, f)

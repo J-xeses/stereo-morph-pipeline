@@ -5,20 +5,43 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>stereo-morph-pipeline 모니터</title>
 <style>
-  :root { color-scheme: dark; --bg:#14161a; --panel:#1d2026; --border:#2b2f38; --text:#e7e9ee; --muted:#9aa2b1; --accent:#5b8cff; --ok:#3ecf8e; --warn:#f0a93b; --bad:#f06363; }
+  :root { color-scheme: dark; --bg:#14161a; --panel:#1d2026; --panel2:#20242c; --border:#2b2f38; --text:#e7e9ee; --muted:#9aa2b1; --accent:#5b8cff; --ok:#3ecf8e; --warn:#f0a93b; --bad:#f06363; }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font-family: -apple-system, "Segoe UI", sans-serif; }
-  header { padding: 16px 20px; border-bottom: 1px solid var(--border); display:flex; align-items:center; gap:12px; }
-  header h1 { font-size: 16px; margin:0; font-weight:600; }
-  header .hint { color: var(--muted); font-size: 13px; }
-  main { padding: 20px; max-width: 1200px; margin: 0 auto; }
-  .shot { border:1px solid var(--border); border-radius:10px; margin-bottom:24px; background:var(--panel); overflow:hidden; }
-  .shot-title { padding:12px 16px; font-weight:600; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px; }
-  .shot-title .shot-id { display:flex; align-items:center; gap:10px; }
-  .params-btn { background:none; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; }
-  .params-btn:hover { border-color:var(--accent); }
-  .next-action { padding:10px 16px; background:#20242c; border-bottom:1px solid var(--border); font-size:13px; color:var(--accent); }
-  .stages { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:1px; background:var(--border); }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family: -apple-system, "Segoe UI", sans-serif; }
+  #app { display:flex; height:100vh; width:100vw; overflow:hidden; }
+
+  /* ---------- 좌측 사이드바 ---------- */
+  #sidebar { width:280px; min-width:280px; border-right:1px solid var(--border); background:var(--panel); display:flex; flex-direction:column; overflow-y:auto; }
+  .sb-section { padding:14px 16px; border-bottom:1px solid var(--border); }
+  .sb-title { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin:0 0 10px; font-weight:700; }
+  .sb-brand { padding:16px; border-bottom:1px solid var(--border); font-weight:700; font-size:14px; }
+  .sb-brand .sub { display:block; font-size:11px; color:var(--muted); font-weight:400; margin-top:2px; }
+  .shot-item { display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border-radius:7px; cursor:pointer; font-size:13px; margin-bottom:4px; }
+  .shot-item:hover { background:#262a33; }
+  .shot-item.active { background:var(--accent); color:#0b1020; font-weight:600; }
+  .shot-item .mini-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-right:6px; }
+  .shot-item-name { display:flex; align-items:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tech-card { border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; cursor:pointer; background:var(--panel2); }
+  .tech-card:hover { border-color:var(--accent); }
+  .tech-card .t-label { font-size:12px; font-weight:600; }
+  .tech-card .t-count { font-size:11px; color:var(--muted); margin-top:3px; }
+  .tech-card .t-fields { display:none; margin-top:8px; font-size:11px; color:var(--muted); line-height:1.6; }
+  .tech-card.open .t-fields { display:block; }
+  .tech-card .t-fields code { color:var(--accent); }
+
+  /* ---------- 메인 ---------- */
+  #main { flex:1; overflow-y:auto; display:flex; flex-direction:column; }
+  .main-empty { margin:auto; color:var(--muted); text-align:center; padding:40px; }
+  .main-header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .main-header h2 { margin:0; font-size:18px; }
+  .next-action { padding:10px 24px; background:var(--panel2); border-bottom:1px solid var(--border); font-size:13px; color:var(--accent); }
+  .tabs { display:flex; gap:4px; padding:0 24px; border-bottom:1px solid var(--border); background:var(--panel); }
+  .tab-btn { background:none; border:none; color:var(--muted); padding:12px 16px; font-size:13px; cursor:pointer; border-bottom:2px solid transparent; }
+  .tab-btn.active { color:var(--text); border-bottom-color:var(--accent); font-weight:600; }
+  .tab-pane { padding:20px 24px 60px; flex:1; }
+  .tab-pane.hidden { display:none; }
+
+  .stages { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
   .stage { background:var(--panel); padding:14px; min-height:160px; display:flex; flex-direction:column; }
   .stage.locked { background:#181a1f; }
   .stage-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:10px; }
@@ -38,35 +61,49 @@
   .upload-row input[type=file] { font-size:11px; color:var(--muted); max-width: 100%; }
   .upload-row input[type=file]:disabled { opacity:.4; }
   .status { font-size:11px; color: var(--accent); margin-top:4px; min-height: 14px; }
+
+  .pblock { border:1px solid var(--border); border-radius:10px; margin-bottom:18px; overflow:hidden; }
+  .pblock-head { padding:12px 16px; background:var(--panel2); font-weight:600; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
+  .pblock-body { padding:16px; background:var(--panel); }
+  .params-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; }
+  .field { display:flex; flex-direction:column; gap:4px; }
+  .field.wide { grid-column: 1 / -1; }
+  .field label { font-size:11px; color:var(--muted); }
+  .field input, .field select, .field textarea { background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 8px; font-size:13px; font-family:inherit; }
+  .field textarea { min-height:52px; resize:vertical; font-family: ui-monospace, monospace; }
+  .field .def-hint { font-size:10px; color:#5c6372; }
+  .advanced-toggle { font-size:12px; color:var(--muted); cursor:pointer; margin:10px 0 2px; user-select:none; }
+  .advanced-body { display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); }
+  .advanced-body.open { display:block; }
+  .params-actions { display:flex; align-items:center; gap:10px; margin-top:14px; position:sticky; bottom:0; background:var(--bg); padding:10px 0; }
+  .params-actions button { background:var(--accent); border:none; color:#0b1020; font-weight:600; padding:9px 18px; border-radius:6px; cursor:pointer; font-size:13px; }
+  .params-actions button:disabled { opacity:.5; cursor:default; }
+  .params-status { font-size:12px; color:var(--muted); white-space:pre-wrap; }
+  .params-warn { font-size:11px; color:var(--warn); margin-top:4px; }
+
   .lightbox { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:50; padding:24px; }
   .lightbox.open { display:flex; }
   .lightbox img, .lightbox video { max-width:100%; max-height:100%; border-radius:8px; }
   .lightbox-close { position:absolute; top:16px; right:20px; color:#fff; font-size:28px; cursor:pointer; background:none; border:none; }
-  .empty-state { text-align:center; color:var(--muted); padding: 60px 20px; }
-
-  .params-panel { display:none; border-bottom:1px solid var(--border); padding:16px; background:#181b21; }
-  .params-panel.open { display:block; }
-  .params-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
-  .field { display:flex; flex-direction:column; gap:4px; }
-  .field.wide { grid-column: 1 / -1; }
-  .field label { font-size:11px; color:var(--muted); }
-  .field input, .field select, .field textarea { background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 8px; font-size:13px; font-family:inherit; }
-  .field textarea { min-height:52px; resize:vertical; }
-  .params-actions { display:flex; align-items:center; gap:10px; margin-top:14px; }
-  .params-actions button { background:var(--accent); border:none; color:#0b1020; font-weight:600; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; }
-  .params-actions button:disabled { opacity:.5; cursor:default; }
-  .params-status { font-size:12px; color:var(--muted); white-space:pre-wrap; }
-  .params-warn { font-size:11px; color:var(--warn); margin-top:4px; }
 </style>
 </head>
 <body>
-<header>
-  <h1>stereo-morph-pipeline 모니터</h1>
-  <span class="hint">output/&lt;shot_id&gt;/cp1~cp4 자동 스캔 · CP1/CP2 승인 전엔 CP3 업로드 잠김 · 15초마다 새로고침</span>
-</header>
-<main id="main">
-  <div class="empty-state">불러오는 중…</div>
-</main>
+<div id="app">
+  <div id="sidebar">
+    <div class="sb-brand">stereo-morph-pipeline<span class="sub">모핑 스튜디오 · CP1~CP4 제어판</span></div>
+    <div class="sb-section">
+      <div class="sb-title">샷</div>
+      <div id="shot-list"><div class="status">불러오는 중…</div></div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-title">연출 기법 4종 (클릭하면 파라미터 미리보기)</div>
+      <div id="tech-list"></div>
+    </div>
+  </div>
+  <div id="main">
+    <div class="main-empty">왼쪽에서 샷을 선택하세요.</div>
+  </div>
+</div>
 
 <div class="lightbox" id="lightbox">
   <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
@@ -75,40 +112,113 @@
 
 <script>
 const STAGE_ORDER = ["cp1_trajectory_preview", "cp2_hero_frame", "cp3_segments", "cp4_final"];
-const openParamsPanels = new Set();
+let SHOTS = [];
+let TECH_SCHEMA = { techniques: {}, vace_params: {} };
+let SELECTED_SHOT = null;
+let ACTIVE_TAB = "status";
+let PARAMS_CACHE = {};        // shotId -> raw params data from server
+let PENDING_TECHNIQUE = {};   // shotId -> technique currently shown in the form (may differ from saved)
+// build_workflow_vace()의 인자명(width/height)과 브리프 yaml의 실제 키(vace_width/vace_height)가
+// 달라서(둘 다 쓰는 이유: yaml 쪽은 다른 vace_* 네이밍 규칙을 먼저 정했었음) 여기서만 매핑.
+const VACE_FIELD_TO_YAML_KEY = { width: "vace_width", height: "vace_height" };
 
-async function load() {
-  const res = await fetch("/api/shots");
-  const shots = await res.json();
-  const main = document.getElementById("main");
-  if (!shots.length) {
-    main.innerHTML = '<div class="empty-state">아직 output/ 아래 샷 폴더가 없습니다.<br>Colab에서 받은 결과물을 output/&lt;shot_id&gt;/cp1_trajectory_preview 등에 넣어주세요.</div>';
-    return;
-  }
-  main.innerHTML = shots.map(renderShot).join("");
-  for (const shotId of openParamsPanels) {
-    loadParams(shotId);
-  }
+async function boot() {
+  TECH_SCHEMA = await (await fetch("/api/techniques")).json();
+  renderTechList();
+  await loadShots();
+  setInterval(loadShots, 15000);
 }
 
-function renderShot(shot) {
-  const stages = STAGE_ORDER.map(key => renderStage(shot.shot_id, key, shot.stages[key])).join("");
-  const paramsBtn = shot.has_params
-    ? `<button class="params-btn" onclick="toggleParams('${shot.shot_id}')">⚙ 생성 파라미터</button>`
-    : `<span class="hint">매니페스트 없음</span>`;
-  return `<div class="shot">
-    <div class="shot-title">
-      <span class="shot-id">${shot.shot_id}</span>
-      ${paramsBtn}
+async function loadShots() {
+  const res = await fetch("/api/shots");
+  SHOTS = await res.json();
+  renderShotList();
+  if (SELECTED_SHOT && !SHOTS.find(s => s.shot_id === SELECTED_SHOT)) SELECTED_SHOT = null;
+  if (!SELECTED_SHOT && SHOTS.length) SELECTED_SHOT = SHOTS[0].shot_id;
+  renderMain();
+}
+
+function overallDot(shot) {
+  const sts = STAGE_ORDER.map(k => shot.stages[k].approval.status);
+  if (sts.some(s => s === "rejected")) return "var(--bad)";
+  if (sts.every(s => s === "approved")) return "var(--ok)";
+  return "var(--warn)";
+}
+
+function renderShotList() {
+  const el = document.getElementById("shot-list");
+  if (!SHOTS.length) {
+    el.innerHTML = '<div class="status">output/ 아래 샷 폴더 없음</div>';
+    return;
+  }
+  el.innerHTML = SHOTS.map(s => `
+    <div class="shot-item ${s.shot_id === SELECTED_SHOT ? 'active' : ''}" onclick="selectShot('${s.shot_id}')">
+      <span class="shot-item-name"><span class="mini-dot" style="background:${overallDot(s)}"></span>${s.shot_id}</span>
+    </div>
+  `).join("");
+}
+
+function renderTechList() {
+  const el = document.getElementById("tech-list");
+  el.innerHTML = Object.entries(TECH_SCHEMA.techniques).map(([name, t]) => `
+    <div class="tech-card" id="tcard-${name}" onclick="toggleTechCard('${name}')">
+      <div class="t-label">${t.label}</div>
+      <div class="t-count">${name} · 파라미터 ${Object.keys(t.fields).length}개</div>
+      <div class="t-fields">${Object.entries(t.fields).map(([fn, f]) =>
+        `<code>${fn}</code> = ${f.required ? '(필수)' : JSON.stringify(f.default)}`
+      ).join("<br>")}</div>
+    </div>
+  `).join("");
+}
+function toggleTechCard(name) {
+  document.getElementById(`tcard-${name}`).classList.toggle("open");
+}
+
+function selectShot(shotId) {
+  SELECTED_SHOT = shotId;
+  ACTIVE_TAB = "status";
+  renderShotList();
+  renderMain();
+}
+
+function setTab(tab) {
+  ACTIVE_TAB = tab;
+  renderMain();
+}
+
+function renderMain() {
+  const main = document.getElementById("main");
+  if (!SELECTED_SHOT) {
+    main.innerHTML = '<div class="main-empty">왼쪽에서 샷을 선택하세요.</div>';
+    return;
+  }
+  const shot = SHOTS.find(s => s.shot_id === SELECTED_SHOT);
+  if (!shot) return;
+  main.innerHTML = `
+    <div class="main-header">
+      <h2>${shot.shot_id}</h2>
     </div>
     <div class="next-action">▶ 다음 할 일: ${shot.next_action}</div>
-    <div class="params-panel" id="params-${shot.shot_id}"><div class="hint">불러오는 중…</div></div>
-    <div class="stages">${stages}</div>
-  </div>`;
+    <div class="tabs">
+      <button class="tab-btn ${ACTIVE_TAB === 'status' ? 'active' : ''}" onclick="setTab('status')">진행현황 (CP1~CP4)</button>
+      <button class="tab-btn ${ACTIVE_TAB === 'params' ? 'active' : ''}" onclick="setTab('params')" ${shot.has_params ? '' : 'disabled'}>연출 파라미터${shot.has_params ? '' : ' (매니페스트 없음)'}</button>
+    </div>
+    <div class="tab-pane hidden" id="pane-status"></div>
+    <div class="tab-pane hidden" id="pane-params"></div>
+  `;
+  document.getElementById(`pane-${ACTIVE_TAB}`).classList.remove("hidden");
+  renderStatusPane(shot);
+  if (ACTIVE_TAB === "params" && shot.has_params) renderParamsPane(shot.shot_id);
+}
+
+/* ---------------- 진행현황 탭 ---------------- */
+
+function renderStatusPane(shot) {
+  const pane = document.getElementById("pane-status");
+  pane.innerHTML = `<div class="stages">${STAGE_ORDER.map(key => renderStage(shot.shot_id, key, shot.stages[key])).join("")}</div>`;
 }
 
 function renderStage(shotId, key, stage) {
-  if (!stage) return "";
   const body = stage.files.length
     ? stage.files.map(url => mediaTag(stage.kind, url)).join("")
     : '<div class="empty">아직 없음</div>';
@@ -118,7 +228,7 @@ function renderStage(shotId, key, stage) {
   const lockNote = stage.locked ? `<div class="lock-note">🔒 ${stage.lock_reason}</div>` : "";
   return `<div class="stage ${stage.locked ? 'locked' : ''}">
     <div class="stage-head">
-      <h3>${stage.label}<br><span class="hint" style="font-size:10px">${gateTag}</span></h3>
+      <h3>${stage.label}<br><span class="status" style="font-size:10px">${gateTag}</span></h3>
       <span class="badge ${st}">${badgeText(st)}</span>
     </div>
     ${body}
@@ -143,17 +253,13 @@ function badgeText(status) {
 }
 
 function mediaTag(kind, url) {
-  if (kind === "image") {
-    return `<img src="${url}" onclick="openLightbox('image','${url}')" />`;
-  }
+  if (kind === "image") return `<img src="${url}" onclick="openLightbox('image','${url}')" />`;
   return `<video src="${url}" controls onclick="this.paused ? this.play() : null"></video>`;
 }
 
 function openLightbox(kind, url) {
   const content = document.getElementById("lightbox-content");
-  content.innerHTML = kind === "image"
-    ? `<img src="${url}" />`
-    : `<video src="${url}" controls autoplay></video>`;
+  content.innerHTML = kind === "image" ? `<img src="${url}" />` : `<video src="${url}" controls autoplay></video>`;
   document.getElementById("lightbox").classList.add("open");
 }
 function closeLightbox() {
@@ -172,7 +278,7 @@ async function uploadSubstitute(input, shotId, stageKey) {
     const res = await fetch(`/api/shots/${shotId}/${stageKey}/upload`, { method: "POST", body: form });
     if (!res.ok) throw new Error(await res.text());
     statusEl.textContent = "교체 완료";
-    load();
+    await loadShots();
   } catch (e) {
     statusEl.textContent = "실패: " + e.message;
   }
@@ -180,76 +286,84 @@ async function uploadSubstitute(input, shotId, stageKey) {
 
 async function setApproval(shotId, stageKey, status) {
   let note = "";
-  if (status === "rejected") {
-    note = prompt("반려 사유(무엇이 문제인지 적어두면 다음에 참고됨):", "") || "";
-  }
+  if (status === "rejected") note = prompt("반려 사유(다음에 참고됨):", "") || "";
   try {
     const res = await fetch(`/api/shots/${shotId}/${stageKey}/approval`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status, note }),
     });
     if (!res.ok) throw new Error(await res.text());
-    load();
+    await loadShots();
   } catch (e) {
     alert("승인 상태 변경 실패: " + e.message);
   }
 }
 
-function toggleParams(shotId) {
-  const panel = document.getElementById(`params-${shotId}`);
-  const willOpen = !panel.classList.contains("open");
-  panel.classList.toggle("open");
-  if (willOpen) {
-    openParamsPanels.add(shotId);
-    loadParams(shotId);
-  } else {
-    openParamsPanels.delete(shotId);
-  }
-}
+/* ---------------- 연출 파라미터 탭 ---------------- */
 
-async function loadParams(shotId) {
-  const panel = document.getElementById(`params-${shotId}`);
-  if (!panel) return;
+async function renderParamsPane(shotId) {
+  const pane = document.getElementById("pane-params");
+  pane.innerHTML = '<div class="status">불러오는 중…</div>';
   try {
     const res = await fetch(`/api/shots/${shotId}/params`);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    panel.innerHTML = renderParamsForm(shotId, data);
+    PARAMS_CACHE[shotId] = data;
+    PENDING_TECHNIQUE[shotId] = data.technique;
+    pane.innerHTML = buildParamsHTML(shotId, data);
+    renderTechniqueFields(shotId);
   } catch (e) {
-    panel.innerHTML = `<div class="params-warn">파라미터 불러오기 실패: ${e.message}</div>`;
+    pane.innerHTML = `<div class="params-warn">파라미터 불러오기 실패: ${e.message}</div>`;
   }
 }
 
-function renderParamsForm(shotId, data) {
-  const p = data.params || {};
-  const backend = data.backend || "wan_vace";
-  const num = (v) => (v === undefined || v === null ? "" : v);
+function buildParamsHTML(shotId, data) {
+  const technique = PENDING_TECHNIQUE[shotId] || data.technique;
   return `
-    <div class="params-grid">
-      <div class="field wide"><label>기법 (technique, 읽기전용)</label><input value="${num(data.technique)}" disabled /></div>
-      <div class="field wide"><label>연출 의도 (narrative_note)</label><textarea id="pf-${shotId}-narrative_note">${num(data.narrative_note)}</textarea></div>
-
-      <div class="field"><label>radius (m)</label><input type="number" step="0.01" id="pf-${shotId}-p-radius" value="${num(p.radius)}" /></div>
-      <div class="field"><label>height (m)</label><input type="number" step="0.01" id="pf-${shotId}-p-height" value="${num(p.height)}" /></div>
-      <div class="field"><label>arc_height (m)</label><input type="number" step="0.01" id="pf-${shotId}-p-arc_height" value="${num(p.arc_height)}" /></div>
-      <div class="field"><label>arc_degrees</label><input type="number" step="1" id="pf-${shotId}-p-arc_degrees" value="${num(p.arc_degrees)}" /></div>
-      <div class="field"><label>duration_s</label><input type="number" step="0.1" id="pf-${shotId}-p-duration_s" value="${num(p.duration_s)}" /></div>
-      <div class="field"><label>fov_deg</label><input type="number" step="1" id="pf-${shotId}-p-fov_deg" value="${num(p.fov_deg)}" /></div>
-
-      <div class="field">
-        <label>backend (Wan2.1 VACE 핵심 스위치)</label>
-        <select id="pf-${shotId}-backend">
-          <option value="wan_vace" ${backend === "wan_vace" ? "selected" : ""}>wan_vace</option>
-          <option value="sd15_animatediff" ${backend === "sd15_animatediff" ? "selected" : ""}>sd15_animatediff (legacy)</option>
-        </select>
+    <div class="pblock">
+      <div class="pblock-head">① 연출 기법 — 제어 레이어 (control/camera_paths.py)</div>
+      <div class="pblock-body">
+        <div class="params-grid">
+          <div class="field wide">
+            <label>technique</label>
+            <select id="pf-${shotId}-technique" onchange="onTechniqueChange('${shotId}')">
+              ${Object.entries(TECH_SCHEMA.techniques).map(([name, t]) =>
+                `<option value="${name}" ${name === technique ? "selected" : ""}>${t.label} — ${name}</option>`
+              ).join("")}
+            </select>
+          </div>
+          <div class="field wide"><label>연출 의도 (narrative_note)</label><textarea id="pf-${shotId}-narrative_note">${esc(data.narrative_note)}</textarea></div>
+        </div>
+        <div class="params-grid" id="technique-fields-${shotId}" style="margin-top:12px;"></div>
       </div>
-      <div class="field"><label>reference_strength (1.0~1.5 권장, VACE identity-lock)</label>
-        <input type="number" step="0.05" min="0" max="3" id="pf-${shotId}-reference_strength" value="${num(data.reference_strength)}" /></div>
-
-      <div class="field wide"><label>positive_prompt</label><textarea id="pf-${shotId}-positive_prompt">${num(data.positive_prompt)}</textarea></div>
-      <div class="field wide"><label>negative_prompt</label><textarea id="pf-${shotId}-negative_prompt">${num(data.negative_prompt)}</textarea></div>
     </div>
+
+    <div class="pblock">
+      <div class="pblock-head">② 피사체 참조 &amp; Wan2.1-VACE 생성 엔진 파라미터</div>
+      <div class="pblock-body">
+        <div class="params-grid">
+          <div class="field">
+            <label>backend</label>
+            <select id="pf-${shotId}-backend">
+              <option value="wan_vace" ${data.backend === "wan_vace" ? "selected" : ""}>wan_vace (기본)</option>
+              <option value="sd15_animatediff" ${data.backend === "sd15_animatediff" ? "selected" : ""}>sd15_animatediff (legacy)</option>
+            </select>
+          </div>
+          ${Object.entries(TECH_SCHEMA.vace_params).filter(([n]) => !["diffusion_model_name","vae_name","clip_name"].includes(n)).map(([name, f]) => vaceFieldHtml(shotId, name, f, data)).join("")}
+        </div>
+        <div class="field wide" style="margin-top:12px"><label>positive_prompt</label><textarea id="pf-${shotId}-positive_prompt">${esc(data.positive_prompt)}</textarea></div>
+        <div class="field wide" style="margin-top:12px"><label>negative_prompt</label><textarea id="pf-${shotId}-negative_prompt">${esc(data.negative_prompt)}</textarea></div>
+
+        <div class="advanced-toggle" onclick="this.nextElementSibling.classList.toggle('open')">▸ 고급: 모델 파일명 직접 지정 (Colab 쪽에 그 파일이 실제로 있어야 동작함)</div>
+        <div class="advanced-body">
+          <div class="params-grid">
+            ${Object.entries(TECH_SCHEMA.vace_params).filter(([n]) => ["diffusion_model_name","vae_name","clip_name"].includes(n)).map(([name, f]) => vaceFieldHtml(shotId, name, f, data)).join("")}
+          </div>
+          <div class="params-warn">기본값에서 바꾸면 Colab의 ComfyUI/models/ 아래 그 파일명이 실제로 있는지 먼저 확인하세요 — 없으면 /prompt 제출이 바로 실패합니다.</div>
+        </div>
+      </div>
+    </div>
+
     <div class="params-actions">
       <button onclick="saveParams('${shotId}')">저장 + 재생성 (input/build_shot.py 실행)</button>
       <span class="params-status" id="pf-${shotId}-status"></span>
@@ -258,42 +372,109 @@ function renderParamsForm(shotId, data) {
   `;
 }
 
+function vaceFieldHtml(shotId, name, field, data) {
+  const yamlKey = VACE_FIELD_TO_YAML_KEY[name] || name;
+  const current = data[yamlKey] !== undefined && data[yamlKey] !== null ? data[yamlKey] : field.default;
+  const id = `pf-${shotId}-vace-${name}`;
+  if (name === "sampler_name" || name === "scheduler") {
+    const options = name === "sampler_name"
+      ? ["uni_pc", "euler", "dpmpp_2m", "dpmpp_sde", "ddim"]
+      : ["simple", "karras", "exponential", "sgm_uniform", "ddim_uniform"];
+    return `<div class="field"><label>${name}</label>
+      <input list="${id}-list" id="${id}" value="${esc(current)}" />
+      <datalist id="${id}-list">${options.map(o => `<option value="${o}">`).join("")}</datalist>
+      <span class="def-hint">기본값: ${field.default}</span>
+    </div>`;
+  }
+  const step = field.type === "int" ? "1" : "0.01";
+  return `<div class="field"><label>${name}</label>
+    <input type="${field.type === 'str' ? 'text' : 'number'}" step="${step}" id="${id}" value="${esc(current)}" />
+    <span class="def-hint">기본값: ${JSON.stringify(field.default)}</span>
+  </div>`;
+}
+
+function onTechniqueChange(shotId) {
+  PENDING_TECHNIQUE[shotId] = document.getElementById(`pf-${shotId}-technique`).value;
+  renderTechniqueFields(shotId);
+}
+
+function renderTechniqueFields(shotId) {
+  const container = document.getElementById(`technique-fields-${shotId}`);
+  if (!container) return;
+  const technique = PENDING_TECHNIQUE[shotId];
+  const data = PARAMS_CACHE[shotId] || {};
+  const sameTechnique = data.technique === technique;
+  const savedParams = sameTechnique ? (data.params || {}) : {};
+  const fields = TECH_SCHEMA.techniques[technique].fields;
+  container.innerHTML = Object.entries(fields).map(([name, f]) => {
+    const id = `pf-${shotId}-p-${name}`;
+    if (name === "waypoints") {
+      const wp = savedParams.waypoints || [[0, -5, 1.6], [2, -2, 1.8], [1, 1, 1.5], [-2, 3, 2.0]];
+      const text = wp.map(p => p.join(",")).join("\n");
+      return `<div class="field wide"><label>waypoints (한 줄에 x,y,z — Catmull-Rom 보간, 최소 3개)</label>
+        <textarea id="${id}" style="min-height:90px">${esc(text)}</textarea></div>`;
+    }
+    const current = savedParams[name] !== undefined ? savedParams[name] : f.default;
+    const step = f.type === "int" ? "1" : "0.01";
+    return `<div class="field"><label>${name}</label>
+      <input type="number" step="${step}" id="${id}" value="${current}" />
+      <span class="def-hint">기본값: ${f.default}${f.required ? " (필수)" : ""}</span>
+    </div>`;
+  }).join("");
+}
+
 async function saveParams(shotId) {
   const g = (id) => document.getElementById(id);
   const statusEl = g(`pf-${shotId}-status`);
+  const technique = PENDING_TECHNIQUE[shotId];
+  const fields = TECH_SCHEMA.techniques[technique].fields;
+  const params = {};
+  for (const name of Object.keys(fields)) {
+    if (name === "waypoints") {
+      const text = g(`pf-${shotId}-p-waypoints`).value.trim();
+      params.waypoints = text.split("\n").map(line => line.split(",").map(s => parseFloat(s.trim())));
+    } else {
+      params[name] = parseFloat(g(`pf-${shotId}-p-${name}`).value);
+    }
+  }
+
   const payload = {
+    technique,
     narrative_note: g(`pf-${shotId}-narrative_note`).value,
     backend: g(`pf-${shotId}-backend`).value,
-    reference_strength: parseFloat(g(`pf-${shotId}-reference_strength`).value),
     positive_prompt: g(`pf-${shotId}-positive_prompt`).value,
     negative_prompt: g(`pf-${shotId}-negative_prompt`).value,
-    params: {
-      radius: parseFloat(g(`pf-${shotId}-p-radius`).value),
-      height: parseFloat(g(`pf-${shotId}-p-height`).value),
-      arc_height: parseFloat(g(`pf-${shotId}-p-arc_height`).value),
-      arc_degrees: parseFloat(g(`pf-${shotId}-p-arc_degrees`).value),
-      duration_s: parseFloat(g(`pf-${shotId}-p-duration_s`).value),
-      fov_deg: parseFloat(g(`pf-${shotId}-p-fov_deg`).value),
-    },
+    params,
   };
+  for (const name of Object.keys(TECH_SCHEMA.vace_params)) {
+    const el = g(`pf-${shotId}-vace-${name}`);
+    if (!el) continue;
+    const f = TECH_SCHEMA.vace_params[name];
+    const yamlKey = VACE_FIELD_TO_YAML_KEY[name] || name;
+    payload[yamlKey] = f.type === "str" ? el.value : parseFloat(el.value);
+  }
+
   statusEl.textContent = "저장 + build_shot.py 실행 중… (몇 초 걸림)";
   try {
     const res = await fetch(`/api/shots/${shotId}/params`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(await res.text());
     const result = await res.json();
     statusEl.textContent = "완료:\n" + result.build_log;
-    load();
+    await loadShots();
   } catch (e) {
     statusEl.textContent = "실패: " + e.message;
   }
 }
 
-load();
-setInterval(load, 15000);
+function esc(v) {
+  if (v === undefined || v === null) return "";
+  return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+boot();
 </script>
 </body>
 </html>
