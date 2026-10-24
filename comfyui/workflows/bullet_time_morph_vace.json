@@ -53,7 +53,7 @@
   "7": {
     "class_type": "LoadImage",
     "inputs": {
-      "image": "/content/subject_ref_clean.png"
+      "image": "subject_ref_clean.png"
     }
   },
   "8": {

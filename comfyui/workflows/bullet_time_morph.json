@@ -66,7 +66,7 @@
   "7": {
     "class_type": "LoadImage",
     "inputs": {
-      "image": "/content/subject_ref.png"
+      "image": "subject_ref.png"
     }
   },
   "8": {

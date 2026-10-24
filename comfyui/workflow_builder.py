@@ -363,7 +363,7 @@ if __name__ == "__main__":
         backend="wan_vace",
         shot_id="demo_bullet_time",
         depth_pass_dir="/content/render/demo_bullet_time/depth",
-        subject_image_path="/content/subject_ref_clean.png",
+        subject_image_path="subject_ref_clean.png",
         positive_prompt="cinematic photoreal subject, bullet time orbit shot, consistent identity",
     )
     write_workflow_json(
@@ -371,6 +371,6 @@ if __name__ == "__main__":
         backend="sd15_animatediff",
         shot_id="demo_bullet_time",
         depth_pass_dir="/content/render/demo_bullet_time/depth",
-        subject_image_path="/content/subject_ref.png",
+        subject_image_path="subject_ref.png",
         positive_prompt="cinematic photoreal subject, bullet time orbit shot, consistent identity",
     )
