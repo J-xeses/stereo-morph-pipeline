@@ -165,6 +165,32 @@ CP1·CP2·CP4는 자동화 대상이 아니라 "설계상 사람 자리"임을 �
 맞춰 자동으로 떨어지도록 하는 연결 — 지금은 받은 파일을 이 구조에 맞게 수동으로
 넣어야 화면에 뜬다. 다음 Colab 실행 때 마지막 셀에 이 복사 로직을 추가할 것.
 
+### 6-2. 생성 엔진 백엔드 교체: Wan2.1-VACE-1.3B (2026-10-24)
+
+3일간 SD1.5+AnimateDiff+수동 ControlNet/IPAdapter 조합으로 씨름했으나 베이스라인
+depth 회전 자체가 반영되지 않는 문제가 해소되지 않아, ③생성 엔진 레이어를
+**Wan2.1-VACE-1.3B**로 교체했다(①②레이어는 그대로 — `camera_paths.py`,
+`apply_camera_path.py` 투자는 보존). 상세 조사 근거는
+`[[project_periodic_direction_research]]` 2026-10-24 섹션.
+
+- **커스텀 노드팩 불필요** — ComfyUI 코어 0.3.34+에 `WanVaceToVideo` 노드가 이미
+  포함돼 있음(공식 템플릿 + `comfy_extras/nodes_wan.py` 소스로 직접 확인). 기존
+  VideoHelperSuite(이미지 시퀀스 로드/영상 합성)만 재사용.
+- `comfyui/workflow_builder.py`에 `build_workflow_vace()` 신규 추가, 레거시
+  `build_workflow()`(SD1.5)는 폴백으로 보존. `input/schema.py`에 `backend`
+  필드(기본값 `wan_vace`)로 선택.
+- **CP2가 Colab 없이 로컬에서 바로 체감됨** — `input/preprocess_reference.py`가
+  rembg로 참조사진 흰 배경 전처리를 로컬에서 끝내고
+  `output/<shot_id>/cp2_hero_frame/hero.png`에 바로 저장 → 모니터 앱
+  (localhost:4100)에서 Colab 열기 전에 확인 가능. 이전엔 CP2가 전부 Colab
+  쪽에서만 만들어졌음.
+- `strength` 입력(WanVaceToVideo) = 커뮤니티가 "Reference Strength"라 부르는 값 —
+  IP-Adapter 같은 별도 노드체인 없이 이 하나로 정체성 고정 강도를 조절.
+  `input/schema.py`의 `reference_strength`(기본 1.2, 권장 1.0~1.5)로 노출.
+- **아직 Colab 실제 실행으로 검증 안 됨** — 다음 단계는 노트북 셀 0→1→2→2d
+  (VACE 모델 다운로드)→2e(참조사진 전처리, 로컬에서 안 했으면)→(검증)→3→4→5
+  순서로 1개 샷 end-to-end 실행, 오늘 SD1.5 베이스라인(정면 고정)과 직접 비교.
+
 ## 7. 다음 결정 지점
 
 - ComfyUI에서 어떤 비디오 디퓨전 모델을 쓸지 (AnimateDiff-Evolved vs

@@ -19,7 +19,36 @@ class ShotManifest(BaseModel):
 
     narrative_note: str = Field(default="", description="연출 의도 — 자유 텍스트, 기계는 안 읽음")
     subject_image_path: str = Field(..., description="Colab 쪽 경로. 로컬 경로 아님에 주의")
+    subject_image_local_path: str | None = Field(
+        default=None,
+        description="로컬 원본 사진 경로(선택). 지정하면 build_shot.py가 rembg로 흰 배경 "
+        "전처리까지 로컬에서 끝내고 output/<shot_id>/cp2_hero_frame/에 즉시 떨어뜨림 — "
+        "Colab 없이도 CP2를 모니터 앱에서 바로 확인 가능.",
+    )
     positive_prompt: str = Field(default="")
     negative_prompt: str = Field(
         default="blurry, distorted anatomy, extra limbs, low quality"
     )
+    use_ip_adapter_faceid: bool = Field(
+        default=False,
+        description="2026-10-23 실험: depth ControlNet만으로 못 잡는 정체성을 "
+        "IP-Adapter FaceID(SD1.5)로 추가 고정할지. backend=sd15_animatediff 일 때만 "
+        "의미 있음 — True면 ComfyUI_IPAdapter_plus + InsightFace가 Colab에 설치돼 "
+        "있어야 함.",
+    )
+
+    backend: str = Field(
+        default="wan_vace",
+        description="2026-10-24 결정: 생성 엔진 백엔드. 'wan_vace'(기본, Wan2.1-VACE-1.3B "
+        "— 네이티브 ComfyUI 코어 노드만으로 동작, reference_strength로 정체성 고정) "
+        "또는 'sd15_animatediff'(레거시 — depth 회전 베이스라인이 안 깨지는지 재확인하고 "
+        "싶을 때만 폴백으로 사용).",
+    )
+    reference_strength: float = Field(
+        default=1.2,
+        description="backend=wan_vace 전용. WanVaceToVideo의 strength 입력 — 커뮤니티 "
+        "가이드(arca.live, 10/24)가 '낮은 정체성 유사도' 문제의 해법으로 꼽은 값, "
+        "1.0~1.5 권장 범위.",
+    )
+    vace_width: int = Field(default=480, description="backend=wan_vace 전용, 16의 배수")
+    vace_height: int = Field(default=640, description="backend=wan_vace 전용, 16의 배수")

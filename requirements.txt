@@ -5,6 +5,10 @@ pydantic>=2.0
 pyyaml>=6.0
 matplotlib>=3.7
 
+# 2026-10-24 — input/preprocess_reference.py (CP2 히어로 프레임, 로컬 rembg 전처리)
+rembg>=2.0
+pillow>=10.0
+
 # 로컬 — CP1~CP4 모니터 앱(server/app.py)용. yeori-studio(Node)와 별개,
 # 완전 분리된 가벼운 Python 서버라 포트도 다름(:4100).
 fastapi>=0.110

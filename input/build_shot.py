@@ -72,17 +72,32 @@ def main():
         cp1_dir.mkdir(parents=True, exist_ok=True)
         preview_path = preview.preview(str(preset_path), out_path=str(cp1_dir / "preview.png"))
         print(
-            f"[2/3] CP1 궤적 프리뷰: {preview_path}  <- server/app.py 모니터(localhost:4100)에서 바로 확인 가능"
+            f"[2/4] CP1 궤적 프리뷰: {preview_path}  <- server/app.py 모니터(localhost:4100)에서 바로 확인 가능"
         )
     except ImportError:
-        print("[2/3] CP1 프리뷰 생략 — matplotlib 미설치 (pip install matplotlib)")
+        print("[2/4] CP1 프리뷰 생략 — matplotlib 미설치 (pip install matplotlib)")
+
+    if manifest.subject_image_local_path:
+        preprocess_ref = _load_module_from_dir(
+            ROOT / "input", "preprocess_reference.py", "_cmp_preprocess_reference"
+        )
+        cp2_dir = ROOT / "output" / manifest.shot_id / "cp2_hero_frame"
+        cp2_dir.mkdir(parents=True, exist_ok=True)
+        hero_path = preprocess_ref.preprocess(
+            manifest.subject_image_local_path, str(cp2_dir / "hero.png")
+        )
+        print(
+            f"[3/4] CP2 히어로 프레임(rembg 흰 배경): {hero_path}  <- 모니터 앱에서 바로 확인, "
+            f"Colab 업로드 시 이 파일을 그대로 올릴 것"
+        )
+    else:
+        print("[3/4] CP2 생략 — manifest.subject_image_local_path 미지정 (Colab에서 직접 업로드+전처리)")
 
     workflow_builder = _load_module_from_dir(
         ROOT / "comfyui", "workflow_builder.py", "_cmp_workflow_builder"
     )
     workflow_path = ROOT / "comfyui" / "workflows" / f"{manifest.shot_id}.json"
-    workflow_builder.write_workflow_json(
-        str(workflow_path),
+    common_kwargs = dict(
         shot_id=manifest.shot_id,
         depth_pass_dir=f"/content/render/{manifest.shot_id}/depth",
         subject_image_path=manifest.subject_image_path,
@@ -91,10 +106,27 @@ def main():
         frame_count=path.frame_count,
         fps=path.fps,
     )
-    print(f"[3/3] ComfyUI 워크플로우: {workflow_path}")
+    if manifest.backend == "wan_vace":
+        workflow_builder.write_workflow_json(
+            str(workflow_path),
+            backend="wan_vace",
+            width=manifest.vace_width,
+            height=manifest.vace_height,
+            reference_strength=manifest.reference_strength,
+            **common_kwargs,
+        )
+    else:
+        workflow_builder.write_workflow_json(
+            str(workflow_path),
+            backend="sd15_animatediff",
+            use_ip_adapter_faceid=manifest.use_ip_adapter_faceid,
+            **common_kwargs,
+        )
+    print(f"[4/4] ComfyUI 워크플로우({manifest.backend}): {workflow_path}")
     print(
         f"\n다음: git add control/presets/{manifest.shot_id}.json "
-        f"comfyui/workflows/{manifest.shot_id}.json && git commit && git push"
+        f"comfyui/workflows/{manifest.shot_id}.json output/{manifest.shot_id}/cp2_hero_frame "
+        f"&& git commit && git push"
         f"\nColab에서는 SHOT_ID = \"{manifest.shot_id}\" 로 설정 후 노트북 실행"
     )
 
