@@ -14,3 +14,8 @@ pillow>=10.0
 fastapi>=0.110
 uvicorn>=0.29
 python-multipart>=0.0.9
+
+# 2026-10-25 — 모니터 앱의 생성 파라미터 패널이 cinematography_briefs/*.yaml을
+# 직접 읽고 쓴다. 평범한 pyyaml(위)은 저장할 때 주석(백엔드 교체 이력 등)을
+# 날려버려서, 주석을 보존하는 ruamel.yaml로 그 부분만 교체.
+ruamel.yaml>=0.18

@@ -107,7 +107,7 @@ def build_workflow(
         },
         "7": {
             "class_type": "LoadImage",
-            "inputs": {"image": subject_image_path},
+            "inputs": {"image": os.path.basename(subject_image_path)},
         },
         "8": {
             "class_type": "VAEEncode",
@@ -277,9 +277,13 @@ def build_workflow_vace(
             "inputs": {"model": ["1", 0], "shift": model_shift},
         },
         "7": {
-            # 피사체 참조 이미지 — rembg로 흰 배경 전처리된 버전을 넘기는 걸 전제
+            # 피사체 참조 이미지 — rembg로 흰 배경 전처리된 버전을 넘기는 걸 전제.
+            # ComfyUI의 LoadImage는 자기 input/ 폴더 기준 "파일명"만 받는다(절대경로
+            # 주면 400 Invalid image file — 2026-10-24 demo_bullet_time 1차 실행에서
+            # 실측, docs: 이 함수가 받는 subject_image_path는 /content/... 절대경로일
+            # 수도 있으므로 항상 basename만 추출해서 넘긴다.
             "class_type": "LoadImage",
-            "inputs": {"image": subject_image_path},
+            "inputs": {"image": os.path.basename(subject_image_path)},
         },
         "8": {
             # Blender depth 시퀀스 — VHS_LoadImagesPath가 이미지 배치로 로드

@@ -1,11 +1,14 @@
 """
 CP1~CP4 모니터 앱 — 단계별 생성물(궤적 프리뷰/히어로 프레임/세그먼트 영상/최종본)을
-브라우저에서 확인하고, 필요하면 특정 단계의 파일을 교체("대입")하기 위한 로컬 서버.
+브라우저에서 확인·승인하고, 생성 파라미터(Wan2.1-VACE reference_strength 등)를
+직접 고쳐서 재생성까지 트리거하는 로컬 제어판.
 
 왜 필요한가: Colab에서 뭔가 생성되면 그동안 ffmpeg로 프레임 뽑아 Claude가 혼자
 눈으로 보고 "괜찮다/이상하다" 판단했는데, CP1·CP2·CP4는 설계상 사람(성준님)이
-직접 봐야 하는 지점(docs/architecture.md §6). 이 서버는 그 확인을 실제로
-가능하게 하는 창구.
+직접 봐야 하는 지점(docs/architecture.md §6)이고, CP3는 위임 가능하지만 사람
+최종확인은 여전히 필요하다. 2026-10-25 사고: 이 확인을 거치지 않고 GPU 생성까지
+내달려버린 사고가 있었음 — 그래서 여기서부터는 "확인만 보여주는 화면"이 아니라
+승인 전에는 다음 단계 업로드 자체를 서버가 막는 구조로 바꿨다(아래 GATE_REQUIRES).
 
 실행:
     pip install -r requirements.txt
@@ -13,26 +16,44 @@ CP1~CP4 모니터 앱 — 단계별 생성물(궤적 프리뷰/히어로 프레�
     -> http://localhost:4100
 
 output/<shot_id>/ 아래 다음 하위폴더를 스캔한다 (없으면 그냥 빈 상태로 표시):
-    cp1_trajectory_preview/   카메라 궤적 프리뷰(이미지)
-    cp2_hero_frame/           히어로 프레임 / 아이덴티티 앵커(이미지)
-    cp3_segments/             세그먼트별 1차 생성 영상(영상, 여러 개 가능)
-    cp4_final/                체이닝된 최종본(영상)
+    cp1_trajectory_preview/   카메라 궤적 프리뷰(이미지) — 승인 필수
+    cp2_hero_frame/           히어로 프레임 / 아이덴티티 앵커(이미지) — 승인 필수
+    cp3_segments/             세그먼트별 1차 생성 영상(영상, 여러 개 가능) — 승인 가능(위임 가능하지만 기본은 사람 확인)
+    cp4_final/                체이닝된 최종본(영상) — 승인 필수
 
-이 폴더 구조는 Colab 노트북 마지막 셀이 Drive에서 이 경로로 복사/다운로드하도록
-맞춰야 한다 — 지금은 아직 수동 다운로드 단계이므로, 받은 파일을 이 구조에 맞게
-넣기만 하면 바로 화면에 뜬다.
+각 샷의 승인 상태는 output/<shot_id>/pipeline_state.json 에 저장한다.
+CP1·CP2 승인 전에는 cp3_segments 업로드가, CP3 승인 전에는 cp4_final 업로드가
+409로 막힌다 — Colab에서 GPU 생성을 돌리기 전에 반드시 여기서 승인해야 한다는
+뜻. (파일을 output/ 폴더에 직접 복사해 넣는 수동 경로는 이 체크를 안 거치므로,
+앞으로는 "모니터 업로드" 또는 Colab 노트북이 이 API를 거치는 경로로만 넣을 것.)
+
+생성 파라미터 패널(GET/POST /api/shots/{shot_id}/params)은
+input/cinematography_briefs/<shot_id>.yaml 을 직접 읽고 쓴 뒤
+input/build_shot.py 를 그 자리에서 재실행한다 — 즉 reference_strength나
+프롬프트를 여기서 고치면 control/presets·comfyui/workflows·CP1/CP2 프리뷰가
+전부 그 자리에서 다시 만들어지고, 파라미터가 바뀌었으니 CP1/CP2 승인은
+자동으로 "재승인 필요" 상태로 되돌아간다.
 """
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from ruamel.yaml import YAML
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = ROOT / "output"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+BRIEFS_DIR = ROOT / "input" / "cinematography_briefs"
+STATE_FILENAME = "pipeline_state.json"
 
 STAGES = {
     "cp1_trajectory_preview": {"label": "CP1 · 궤적 프리뷰", "kind": "image"},
@@ -40,13 +61,33 @@ STAGES = {
     "cp3_segments": {"label": "CP3 · 세그먼트별 1차 생성", "kind": "video"},
     "cp4_final": {"label": "CP4 · 최종본(체이닝)", "kind": "video"},
 }
+STAGE_ORDER = list(STAGES)
+
+# 이 단계에 업로드하려면 먼저 "approved"여야 하는 선행 단계들.
+# CP1·CP2 승인 전에는 CP3(=GPU 생성 결과물) 업로드 불가 — 오늘 사고의 재발 방지.
+GATE_REQUIRES: dict[str, list[str]] = {
+    "cp1_trajectory_preview": [],
+    "cp2_hero_frame": [],
+    "cp3_segments": ["cp1_trajectory_preview", "cp2_hero_frame"],
+    "cp4_final": ["cp3_segments"],
+}
+DELEGATABLE_GATES = {"cp3_segments"}  # 위임 가능(architecture.md §6) — 그래도 기본은 사람 확인
+VALID_STATUSES = {"pending", "approved", "rejected"}
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 VIDEO_EXT = {".mp4", ".webm", ".mov"}
 
+_yaml = YAML()
+_yaml.preserve_quotes = True
+_yaml.width = 10_000  # 긴 프롬프트/narrative_note가 줄바꿈으로 깨지는 것 방지
+
 app = FastAPI(title="stereo-morph-pipeline monitor")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/files", StaticFiles(directory=str(OUTPUT_DIR)), name="files")
+
+
+def _now() -> str:
+    return datetime.now().isoformat(timespec="seconds")
 
 
 def _list_stage_files(shot_dir: Path, stage_key: str) -> list[str]:
@@ -58,31 +99,126 @@ def _list_stage_files(shot_dir: Path, stage_key: str) -> list[str]:
     return files
 
 
+def _state_path(shot_id: str) -> Path:
+    return OUTPUT_DIR / shot_id / STATE_FILENAME
+
+
+def _load_pipeline_state(shot_id: str) -> dict[str, dict[str, Any]]:
+    path = _state_path(shot_id)
+    state: dict[str, dict[str, Any]] = {}
+    if path.is_file():
+        state = json.loads(path.read_text(encoding="utf-8"))
+    for key in STAGES:
+        state.setdefault(key, {"status": "pending", "note": "", "at": None})
+    return state
+
+
+def _save_pipeline_state(shot_id: str, state: dict[str, dict[str, Any]]) -> None:
+    path = _state_path(shot_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _stage_locked(state: dict, stage_key: str) -> bool:
+    return any(state.get(req, {}).get("status") != "approved" for req in GATE_REQUIRES[stage_key])
+
+
+def _lock_reason(state: dict, stage_key: str) -> str | None:
+    missing = [STAGES[r]["label"] for r in GATE_REQUIRES[stage_key] if state.get(r, {}).get("status") != "approved"]
+    return " / ".join(missing) + " 승인 전에는 업로드할 수 없습니다" if missing else None
+
+
+def _next_action(state: dict, stage_files: dict[str, list[str]]) -> str:
+    for key in STAGE_ORDER:
+        label = STAGES[key]["label"]
+        status = state.get(key, {}).get("status")
+        files = stage_files.get(key, [])
+        if not files:
+            if key == "cp1_trajectory_preview":
+                return f"{label} 없음 — python input/build_shot.py 또는 모니터 ⚙ 파라미터 저장으로 생성"
+            if key == "cp2_hero_frame":
+                return f"{label} 없음 — manifest.subject_image_local_path 지정 후 ⚙ 파라미터 저장, 또는 Colab에서 직접 전처리"
+            if key == "cp3_segments":
+                return "CP1·CP2 승인 완료 — Colab 3번 셀(워크플로우 조립+큐 전송) 실행 가능"
+            if key == "cp4_final":
+                return "CP3 승인 완료 — Colab 5번 셀(결과 다운로드) 후 CP4에 업로드"
+        if status != "approved":
+            tag = "검토 후 승인(위임 가능)" if key in DELEGATABLE_GATES else "검토 후 승인 필수"
+            return f"{label} {tag} (현재: {status})"
+    return "전 단계 승인 완료 ✅"
+
+
+def _plain(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {k: _plain(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_plain(v) for v in obj]
+    return obj
+
+
 @app.get("/api/shots")
 def list_shots():
     if not OUTPUT_DIR.is_dir():
         return []
     shots = []
     for shot_dir in sorted(p for p in OUTPUT_DIR.iterdir() if p.is_dir()):
+        state = _load_pipeline_state(shot_dir.name)
+        stage_files = {key: _list_stage_files(shot_dir, key) for key in STAGES}
         stages = {
             key: {
                 "label": meta["label"],
                 "kind": meta["kind"],
-                "files": [f"/files/{shot_dir.name}/{key}/{fn}" for fn in _list_stage_files(shot_dir, key)],
+                "delegatable": key in DELEGATABLE_GATES,
+                "files": [f"/files/{shot_dir.name}/{key}/{fn}" for fn in stage_files[key]],
+                "approval": state[key],
+                "locked": _stage_locked(state, key),
+                "lock_reason": _lock_reason(state, key),
             }
             for key, meta in STAGES.items()
         }
-        shots.append({"shot_id": shot_dir.name, "stages": stages})
+        shots.append(
+            {
+                "shot_id": shot_dir.name,
+                "stages": stages,
+                "next_action": _next_action(state, stage_files),
+                "has_params": (BRIEFS_DIR / f"{shot_dir.name}.yaml").is_file(),
+            }
+        )
     return shots
+
+
+class ApprovalUpdate(BaseModel):
+    status: str
+    note: str = ""
+
+
+@app.post("/api/shots/{shot_id}/{stage_key}/approval")
+def set_approval(shot_id: str, stage_key: str, body: ApprovalUpdate):
+    if stage_key not in STAGES:
+        raise HTTPException(400, f"알 수 없는 단계: {stage_key}")
+    if body.status not in VALID_STATUSES:
+        raise HTTPException(400, f"status는 {sorted(VALID_STATUSES)} 중 하나")
+    state = _load_pipeline_state(shot_id)
+    state[stage_key] = {"status": body.status, "note": body.note, "at": _now()}
+    _save_pipeline_state(shot_id, state)
+    return state
 
 
 @app.post("/api/shots/{shot_id}/{stage_key}/upload")
 async def substitute_file(shot_id: str, stage_key: str, file: UploadFile = File(...)):
-    """단계별 파일을 사람이 직접 교체("대입")할 때 쓰는 업로드 엔드포인트."""
+    """단계별 파일을 사람이 직접 교체/등록할 때 쓰는 업로드 엔드포인트.
+
+    GATE_REQUIRES에 걸린 선행 단계가 approved가 아니면 409 — Colab 생성 결과를
+    CP1/CP2 승인 없이 CP3에 밀어넣는 걸 서버가 구조적으로 막는다.
+    """
     if stage_key not in STAGES:
         raise HTTPException(400, f"알 수 없는 단계: {stage_key}")
     if ".." in shot_id or "/" in shot_id or "\\" in shot_id:
         raise HTTPException(400, "잘못된 shot_id")
+
+    state = _load_pipeline_state(shot_id)
+    if _stage_locked(state, stage_key):
+        raise HTTPException(409, _lock_reason(state, stage_key) or "이 단계는 아직 잠겨 있습니다")
 
     ext = Path(file.filename or "").suffix.lower()
     expected = IMAGE_EXT if STAGES[stage_key]["kind"] == "image" else VIDEO_EXT
@@ -94,6 +230,55 @@ async def substitute_file(shot_id: str, stage_key: str, file: UploadFile = File(
     dest = stage_dir / file.filename
     dest.write_bytes(await file.read())
     return {"saved": f"/files/{shot_id}/{stage_key}/{file.filename}"}
+
+
+@app.get("/api/shots/{shot_id}/params")
+def get_params(shot_id: str):
+    brief_path = BRIEFS_DIR / f"{shot_id}.yaml"
+    if not brief_path.is_file():
+        raise HTTPException(404, f"매니페스트 없음: {brief_path.relative_to(ROOT)}")
+    data = _yaml.load(brief_path.read_text(encoding="utf-8"))
+    return _plain(data)
+
+
+@app.post("/api/shots/{shot_id}/params")
+def update_params(shot_id: str, payload: dict):
+    """생성 파라미터를 cinematography_briefs/<shot_id>.yaml에 반영하고
+    input/build_shot.py를 즉시 재실행해 궤적·워크플로우·CP1/CP2 프리뷰를
+    새로 뽑는다. 파라미터가 바뀌었으니 CP1/CP2 승인은 재승인 필요로 리셋."""
+    brief_path = BRIEFS_DIR / f"{shot_id}.yaml"
+    if not brief_path.is_file():
+        raise HTTPException(404, f"매니페스트 없음: {brief_path.relative_to(ROOT)}")
+
+    data = _yaml.load(brief_path.read_text(encoding="utf-8"))
+    nested_params = payload.pop("params", None)
+    for k, v in payload.items():
+        data[k] = v
+    if nested_params:
+        if "params" not in data:
+            data["params"] = {}
+        for k, v in nested_params.items():
+            data["params"][k] = v
+
+    with brief_path.open("w", encoding="utf-8") as f:
+        _yaml.dump(data, f)
+
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "input" / "build_shot.py"), str(brief_path)],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if result.returncode != 0:
+        raise HTTPException(500, f"build_shot.py 실패:\n{result.stderr or result.stdout}")
+
+    state = _load_pipeline_state(shot_id)
+    for gate in ("cp1_trajectory_preview", "cp2_hero_frame"):
+        state[gate] = {"status": "pending", "note": "파라미터 변경으로 재승인 필요", "at": _now()}
+    _save_pipeline_state(shot_id, state)
+
+    return {"saved": True, "build_log": result.stdout, "state": state}
 
 
 @app.get("/", response_class=HTMLResponse)

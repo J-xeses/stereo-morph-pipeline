@@ -1,9 +1,7 @@
 shot_id: demo_bullet_time
 technique: orbit_bullet_time
 narrative_note: >
-  피사체가 무언가를 깨닫는 순간 — 시간이 멎고 카메라만 180도 돌며
-  표정을 포착. 오빗형 리빌과 달리 "숨은 공간"이 아니라 "감정의 정점"을
-  드러내는 용도라 arc_degrees는 짧게, duration은 1.5초 이내로 유지.
+  피사체가 무언가를 깨닫는 순간 — 시간이 멎고 카메라만 180도 돌며 표정을 포착. 오빗형 리빌과 달리 "숨은 공간"이 아니라 "감정의 정점"을 드러내는 용도라 arc_degrees는 짧게, duration은 1.5초 이내로 유지.
 params:
   radius: 0.45
   height: 1.45
@@ -15,8 +13,7 @@ params:
 subject_image_path: /content/subject_ref_clean.png
 subject_image_local_path: "C:\\!Ahn\\Corporation\\##. 기획\\05. 매출가능사업구상\\01. SNS 채널운영(AI 제작)\\00. 콘텐츠 제작 자동화\\11. Morphic Studio\\01. 모픽 워크플로우 개발\\10. 클로드 모핑 워크플로우 파이프라인 개발\\01. 연출구축 플로우\\subject_ref.png"
 positive_prompt: >
-  cinematic photoreal subject, bullet time orbit shot, consistent identity,
-  sharp focus, frozen motion, dramatic lighting
+  cinematic photoreal subject, bullet time orbit shot, consistent identity, sharp focus, frozen motion, dramatic lighting
 negative_prompt: blurry, distorted anatomy, extra limbs, low quality, motion blur on subject
 
 # 2026-10-23: depth ControlNet만으로는 180도 회전에서 얼굴이 무너지는 문제 확인됨 —

@@ -7,3 +7,4 @@ control/presets/*_preview.png
 *.glb
 *.blend1
 .ipynb_checkpoints/
+server/*.log
