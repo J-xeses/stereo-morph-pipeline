@@ -149,6 +149,9 @@ _yaml.width = 10_000  # 긴 프롬프트/narrative_note가 줄바꿈으로 깨�
 app = FastAPI(title="stereo-morph-pipeline monitor")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/files", StaticFiles(directory=str(OUTPUT_DIR)), name="files")
+# index.html 자체는 /에서 텍스트로 직접 서빙(아래)하지만, 그 안에서 참조하는 로고
+# 이미지 같은 정적 자산은 별도 마운트가 있어야 브라우저가 받아감.
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 def _now() -> str:
