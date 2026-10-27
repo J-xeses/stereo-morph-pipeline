@@ -106,6 +106,14 @@ def setup_compositor_for_depth_normal(out_dir: str, depth_near: float, depth_far
     mask_out.base_path = os.path.join(out_dir, "control_masks")
     mask_out.file_slots[0].path = "mask_"
     mask_out.format.file_format = "PNG"
+    # 2026-10-27 발견 — 배경이 Invert(Alpha)로 정확히 1.0이 나와야 하는데 저장된
+    # PNG에서 순백(255)이 아니라 회색으로 찍혔음(마스크 PNG 직접 다운받아 확인).
+    # 씬의 기본 색상관리(Blender 4.2는 AgX)가 이 파일 출력에도 걸려서 1.0이
+    # 디스플레이용으로 눌린 것 — mask는 데이터지 "보기 좋은 이미지"가 아니므로
+    # Standard(순수 선형 패스스루)로 덮어써서 0/1이 그대로 저장되게 한다.
+    mask_out.format.color_management = "OVERRIDE"
+    mask_out.format.view_settings.view_transform = "Standard"
+    mask_out.format.view_settings.look = "None"
     invert = tree.nodes.new("CompositorNodeInvert")
     tree.links.new(rl.outputs["Alpha"], invert.inputs[1])
     tree.links.new(invert.outputs[0], mask_out.inputs[0])
