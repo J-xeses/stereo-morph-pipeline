@@ -192,9 +192,13 @@ def build_workflow(
             "inputs": {"ipadapter_file": ip_adapter_faceid_model},
         }
         workflow["17"] = {
-            # provider CPU — insightface 얼굴 임베딩 추출은 T4 VRAM을 안 먹음
-            "class_type": "InsightFaceLoader",
-            "inputs": {"provider": "CPU"},
+            # provider CPU — insightface 얼굴 임베딩 추출은 T4 VRAM을 안 먹음.
+            # 2026-10-28: 클래스명이 "InsightFaceLoader"가 아니라 "IPAdapterInsightFaceLoader"임
+            # (cubiq/ComfyUI_IPAdapter_plus의 IPAdapterPlus.py NODE_CLASS_MAPPINGS 직접 확인,
+            # Colab (검증) 셀에서 "이름이 다름" 경고로 실측 발견) — model_name도 필수 입력이라
+            # 빠지면 노드가 실패한다.
+            "class_type": "IPAdapterInsightFaceLoader",
+            "inputs": {"provider": "CPU", "model_name": "buffalo_l"},
         }
         workflow["18"] = {
             # 참조 얼굴 이미지는 피사체 사진(노드 7) 재사용 — 매 프레임 이 정체성을

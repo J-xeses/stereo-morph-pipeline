@@ -191,9 +191,10 @@
     }
   },
   "17": {
-    "class_type": "InsightFaceLoader",
+    "class_type": "IPAdapterInsightFaceLoader",
     "inputs": {
-      "provider": "CPU"
+      "provider": "CPU",
+      "model_name": "buffalo_l"
     }
   },
   "18": {
