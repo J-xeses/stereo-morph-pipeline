@@ -230,6 +230,7 @@ def build_workflow_vace(
     width: int = 480,
     height: int = 640,
     reference_strength: float = 1.2,
+    mask_pass_dir: str | None = None,
     diffusion_model_name: str = "wan2.1_vace_1.3B_fp16.safetensors",
     vae_name: str = "wan_2.1_vae.safetensors",
     clip_name: str = "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
@@ -249,6 +250,14 @@ def build_workflow_vace(
 
     reference_strength가 바로 WanVaceToVideo의 "strength" 입력 — 커뮤니티 가이드
     (arca.live, 2026-10-24 확인)가 "낮은 유사도" 문제의 해법으로 꼽은 그 파라미터.
+    **단, strength는 control/reference 전체에 걸리는 단일 값이라 이것만으로는
+    "control이 reference를 압도" 문제를 못 고친다는 게 Comfy Cloud 진단(10/26)
+    으로 확정됨 — control_masks(2026-10-27 추가, mask_pass_dir)로 피사체 실루엣
+    영역의 control을 꺼서 그 영역만 reference가 지배하게 하는 쪽으로 보완.
+
+    mask_pass_dir: apply_camera_path.py가 함께 렌더하는 control_masks 시퀀스
+    경로(피사체=0/비활성, 배경=1/활성 — 공식 노드 소스 기준 의미). None이면
+    기존처럼 control_masks를 안 넘김(= 전체 활성, 기존 동작과 동일).
     """
     workflow = {
         "1": {
@@ -347,6 +356,27 @@ def build_workflow_vace(
             },
         },
     }
+
+    if mask_pass_dir:
+        workflow["14"] = {
+            # control_masks 시퀀스 로드 — apply_camera_path.py가 depth/normal과
+            # 같은 프레임 수로 함께 렌더해둔 것(피사체=검정/비활성, 배경=흰색/활성).
+            "class_type": "VHS_LoadImagesPath",
+            "inputs": {
+                "directory": mask_pass_dir,
+                "image_load_cap": frame_count,
+                "skip_first_images": 0,
+            },
+        }
+        workflow["15"] = {
+            # WanVaceToVideo의 control_masks는 MASK 타입을 받음 — 로드된 흑백
+            # PNG(IMAGE)를 red 채널 기준으로 MASK로 변환(그레이스케일이라 채널
+            # 무관하게 값 동일).
+            "class_type": "ImageToMask",
+            "inputs": {"image": ["14", 0], "channel": "red"},
+        }
+        workflow["9"]["inputs"]["control_masks"] = ["15", 0]
+
     return workflow
 
 

@@ -58,6 +58,9 @@ def setup_compositor_for_depth_normal(out_dir: str, depth_near: float, depth_far
     scene.use_nodes = True
     scene.view_layers["ViewLayer"].use_pass_z = True
     scene.view_layers["ViewLayer"].use_pass_normal = True
+    # control_masks용 — 피사체/배경을 Alpha로 분리하려면 월드 배경이 불투명이면
+    # 안 됨(피사체·배경 둘 다 alpha=1로 찍힘).
+    scene.render.film_transparent = True
 
     tree = scene.node_tree
     tree.nodes.clear()
@@ -90,6 +93,22 @@ def setup_compositor_for_depth_normal(out_dir: str, depth_near: float, depth_far
     beauty_out.file_slots[0].path = "beauty_"
     beauty_out.format.file_format = "PNG"
     tree.links.new(rl.outputs["Image"], beauty_out.inputs[0])
+
+    # 2026-10-27 추가 — control_masks: WanVaceToVideo에 control_video와
+    # reference_image를 동시에 넣으면 control이 reference(정체성)를 통째로
+    # 압도한다는 게 Comfy Cloud 진단(10/26)으로 확정됨. control_masks는 공식
+    # 노드 소스상 "mask=1인 영역만 control_video가 작동(reactive), 0인 영역은
+    # 비활성(inactive)"으로 동작 — 피사체 실루엣 영역을 0으로 꺼서 그 영역은
+    # reference_image(정체성)에 맡기고, 배경(카메라 시점 구조)만 control_video가
+    # 계속 통제하게 하려는 의도. Alpha(피사체=1/배경=0, film_transparent=True라서
+    # 가능)를 그대로 쓰면 반대 의미가 되므로 Invert로 뒤집는다.
+    mask_out = tree.nodes.new("CompositorNodeOutputFile")
+    mask_out.base_path = os.path.join(out_dir, "control_masks")
+    mask_out.file_slots[0].path = "mask_"
+    mask_out.format.file_format = "PNG"
+    invert = tree.nodes.new("CompositorNodeInvert")
+    tree.links.new(rl.outputs["Alpha"], invert.inputs[1])
+    tree.links.new(invert.outputs[0], mask_out.inputs[0])
 
 
 def main():
