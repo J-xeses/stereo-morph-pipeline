@@ -197,6 +197,12 @@
       "model_name": "buffalo_l"
     }
   },
+  "19": {
+    "class_type": "CLIPVisionLoader",
+    "inputs": {
+      "clip_name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+    }
+  },
   "18": {
     "class_type": "IPAdapterFaceID",
     "inputs": {
@@ -210,6 +216,10 @@
       ],
       "insightface": [
         "17",
+        0
+      ],
+      "clip_vision": [
+        "19",
         0
       ],
       "image": [

@@ -54,11 +54,13 @@ def build_workflow(
     ip_adapter_faceid_model: str = "ip-adapter-faceid_sd15.bin",
     ip_adapter_faceid_lora: str = "ip-adapter-faceid_sd15_lora.safetensors",
     ip_adapter_weight: float = 0.8,
+    ip_adapter_clip_vision_name: str = "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
 ) -> dict:
     """ComfyUI API 포맷(dict[node_id] = {class_type, inputs}) 워크플로우를 반환.
 
-    use_ip_adapter_faceid=True면 노드 15~18(LoraLoaderModelOnly → IPAdapterModelLoader
-    → InsightFaceLoader → IPAdapterFaceID)을 추가해 체크포인트 모델을 패치하고,
+    use_ip_adapter_faceid=True면 노드 15~19(LoraLoaderModelOnly → IPAdapterModelLoader
+    → IPAdapterInsightFaceLoader → CLIPVisionLoader → IPAdapterFaceID)을 추가해 체크포인트
+    모델을 패치하고,
     AnimateDiff 로더(노드 9)가 그 패치된 모델을 받도록 다시 연결한다. 참조 얼굴 이미지는
     subject_image_path와 동일한 이미지(노드 "7")를 그대로 재사용 — 피사체 사진 1장이면
     충분, 별도 얼굴 크롭 이미지를 또 준비할 필요 없음.
@@ -200,6 +202,14 @@ def build_workflow(
             "class_type": "IPAdapterInsightFaceLoader",
             "inputs": {"provider": "CPU", "model_name": "buffalo_l"},
         }
+        workflow["19"] = {
+            # 2026-10-28: IPAdapterFaceID가 "Missing CLIPVision model." 로 실패(Colab 실측) —
+            # IPAdapterAdvanced.apply_ipadapter가 clip_vision을 무조건 요구함(FaceID도 예외
+            # 아님, cubiq 소스 확인). ip-adapter-faceid_sd15.bin 자체엔 clip vision 가중치가
+            # 안 들어있어서 IPAdapterModelLoader만으론 못 채움 — 별도 로더 필요.
+            "class_type": "CLIPVisionLoader",
+            "inputs": {"clip_name": ip_adapter_clip_vision_name},
+        }
         workflow["18"] = {
             # 참조 얼굴 이미지는 피사체 사진(노드 7) 재사용 — 매 프레임 이 정체성을
             # 기억하도록 모델을 패치, 그 패치된 모델을 AnimateDiff 로더로 넘긴다.
@@ -208,6 +218,7 @@ def build_workflow(
                 "model": ["15", 0],
                 "ipadapter": ["16", 0],
                 "insightface": ["17", 0],
+                "clip_vision": ["19", 0],
                 "image": ["7", 0],
                 "weight": ip_adapter_weight,
                 "weight_faceidv2": 1.0,
