@@ -38,8 +38,22 @@ def parse_args():
     return p.parse_args(argv)
 
 
-def setup_compositor_for_depth_normal(out_dir: str):
-    """Depth + Normal 두 패스를 각각 PNG 시퀀스로 뽑도록 컴포지터 노드 구성."""
+def setup_compositor_for_depth_normal(out_dir: str, depth_near: float, depth_far: float):
+    """Depth + Normal 두 패스를 각각 PNG 시퀀스로 뽑도록 컴포지터 노드 구성.
+
+    2026-10-27 발견: CompositorNodeNormalize는 프레임 안에 찍힌 모든 픽셀의
+    min~max를 0~1로 늘린다. 배경(지오메트리가 없는 픽셀)의 Z값은 카메라
+    clip_end(기본 1000m)로 찍히는데, 이게 프레임 min~max에 그대로 섞여
+    들어가 "피사체 표면 0.2~0.3m 범위"가 "0~1000m 범위" 안의 먼지 수준으로
+    눌려버림 — 코 돌기를 head_r*1.1로 과장해뒀어도(generate_dummy_mesh.py
+    v2) 깊이맵에는 거의 안 드러나고 밋밋한 구 하나만 보이던 원인이었음
+    (demo_bullet_time 생성 결과가 "사람"이 아니라 "매끈한 둥근 물체"로
+    나오던 버그와 직결). CompositorNodeMapRange로 교체해 카메라 궤적상
+    실제 피사체 표면이 있을 수 있는 고정 거리 구간(depth_near~depth_far,
+    main()에서 궤적 전체의 camera-to-look_at 거리로 계산)만 0~1에 매핑하고
+    그 밖은 clamp. 배경은 여전히 1(흰색)로 클램프되어 기존 흰 배경 관례는
+    유지됨.
+    """
     scene = bpy.context.scene
     scene.use_nodes = True
     scene.view_layers["ViewLayer"].use_pass_z = True
@@ -54,9 +68,14 @@ def setup_compositor_for_depth_normal(out_dir: str):
     depth_out.file_slots[0].path = "depth_"
     depth_out.format.file_format = "PNG"
     depth_out.format.color_depth = "16"
-    normalize = tree.nodes.new("CompositorNodeNormalize")
-    tree.links.new(rl.outputs["Depth"], normalize.inputs[0])
-    tree.links.new(normalize.outputs[0], depth_out.inputs[0])
+    map_range = tree.nodes.new("CompositorNodeMapRange")
+    map_range.inputs["From Min"].default_value = depth_near
+    map_range.inputs["From Max"].default_value = depth_far
+    map_range.inputs["To Min"].default_value = 0.0
+    map_range.inputs["To Max"].default_value = 1.0
+    map_range.use_clamp = True
+    tree.links.new(rl.outputs["Depth"], map_range.inputs["Value"])
+    tree.links.new(map_range.outputs[0], depth_out.inputs[0])
 
     normal_out = tree.nodes.new("CompositorNodeOutputFile")
     normal_out.base_path = os.path.join(out_dir, "normal")
@@ -144,8 +163,21 @@ def main():
         cam_obj.keyframe_insert(data_path="rotation_euler", frame=frame_idx)
         cam_data.keyframe_insert(data_path="lens", frame=frame_idx)
 
+    # 궤적 전체에서 카메라-피사체(look_at) 거리의 최소/최대를 구해, 그 구간에
+    # 여유(±0.3m)를 둔 걸 depth 정규화 구간으로 쓴다 — 표면 굴곡(코 등)이
+    # 배경 깊이에 묻히지 않게 하기 위함(위 setup_compositor_for_depth_normal
+    # 설명 참고).
+    cam_dists = [
+        ((fr["position"]["x"] - fr["look_at"]["x"]) ** 2
+         + (fr["position"]["y"] - fr["look_at"]["y"]) ** 2
+         + (fr["position"]["z"] - fr["look_at"]["z"]) ** 2) ** 0.5
+        for fr in camera_path["frames"]
+    ]
+    depth_near = max(min(cam_dists) - 0.3, 0.05)
+    depth_far = max(cam_dists) + 0.3
+
     os.makedirs(args.out_dir, exist_ok=True)
-    setup_compositor_for_depth_normal(args.out_dir)
+    setup_compositor_for_depth_normal(args.out_dir, depth_near, depth_far)
 
     bpy.ops.render.render(animation=True)
     print(f"렌더 완료: {args.out_dir} ({len(camera_path['frames'])} 프레임)")
