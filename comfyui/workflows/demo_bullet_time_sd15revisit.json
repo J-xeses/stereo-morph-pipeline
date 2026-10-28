@@ -142,7 +142,7 @@
       "cfg": 7.0,
       "sampler_name": "euler",
       "scheduler": "normal",
-      "denoise": 0.75
+      "denoise": 0.95
     }
   },
   "11": {

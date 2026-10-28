@@ -36,6 +36,13 @@ class ShotManifest(BaseModel):
         "의미 있음 — True면 ComfyUI_IPAdapter_plus + InsightFace가 Colab에 설치돼 "
         "있어야 함.",
     )
+    sd15_denoise: float | None = Field(
+        default=None,
+        description="backend=sd15_animatediff 전용. None이면 workflow_builder.py 자체 "
+        "기본값(0.75)을 씀. 2026-10-28 실측: 0.75는 36프레임 latent가 전부 동일 원본 "
+        "이미지에서 시작해 25%가 그대로 남아 ControlNet의 depth 회전 신호를 억누르는 것으로 "
+        "보임(정체성은 유지되나 카메라가 정지) — 0.9~1.0 근처로 올려 재시도할 때 사용.",
+    )
 
     backend: str = Field(
         default="wan_vace",

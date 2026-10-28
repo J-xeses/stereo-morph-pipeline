@@ -129,10 +129,13 @@ def main():
             **vace_kwargs,
         )
     else:
+        sd15_kwargs = dict(use_ip_adapter_faceid=manifest.use_ip_adapter_faceid)
+        if manifest.sd15_denoise is not None:
+            sd15_kwargs["denoise"] = manifest.sd15_denoise
         workflow_builder.write_workflow_json(
             str(workflow_path),
             backend="sd15_animatediff",
-            use_ip_adapter_faceid=manifest.use_ip_adapter_faceid,
+            **sd15_kwargs,
             **common_kwargs,
         )
     print(f"[4/4] ComfyUI 워크플로우({manifest.backend}): {workflow_path}")
