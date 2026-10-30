@@ -395,8 +395,149 @@ def build_workflow_vace(
     return workflow
 
 
+def build_workflow_wanmove_gguf(
+    shot_id: str,
+    subject_image_path: str,
+    positive_prompt: str,
+    negative_prompt: str = "blurry, distorted anatomy, extra limbs, low quality, static, no motion",
+    fps: int = 16,
+    width: int = 832,
+    height: int = 480,
+    length: int = 81,
+    track_coords: str | None = None,
+    track_strength: float = 1.0,
+    unet_name: str = "Wan-Move-14B-480P-Q4_K_M.gguf",
+    clip_name: str = "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+    vae_name: str = "wan_2.1_vae.safetensors",
+    clip_vision_name: str = "clip_vision_h.safetensors",
+    lora_name: str = "Wan21_I2V_14B_lightx2v_cfg_step_distill_lora_rank64.safetensors",
+    lora_strength: float = 1.0,
+    steps: int = 6,
+    cfg: float = 1.0,
+    sampler_name: str = "euler",
+    scheduler: str = "simple",
+    seed: int = 0,
+) -> dict:
+    """Wan-Move(GGUF Q4_K_M, 무료 Colab T4 대상) 백엔드 ComfyUI API 포맷 워크플로우.
+
+    2026-10-30, ComfyUI 코어 소스(comfy_extras/nodes_wanmove.py, comfy_extras/
+    custom_nodes/ComfyUI-GGUF/nodes.py)를 직접 읽어 확정한 스키마 — 추측 아님.
+    Wan-Move 전용 노드 5개(WanMoveTrackToVideo/WanMoveTracksFromCoords/
+    WanMoveConcatTrack/WanMoveVisualizeTracks/GenerateTracks)는 ComfyUI 코어에
+    기본 내장돼 있어 커스텀 노드팩이 필요 없다(city96/ComfyUI-GGUF 로더만 추가 설치).
+
+    track_coords를 안 주면(None) GenerateTracks로 단순 좌→우 이동 궤적을 생성해
+    "배관(plumbing)이 끝까지 도는지"부터 검증하는 용도로 쓴다 — 진짜 카메라 오빗
+    궤적을 쓰려면 track_coords에 트랙별 프레임 {"x":..,"y":..} 리스트의 JSON
+    문자열을 직접 넘길 것(WanMoveTracksFromCoords.track_coords 포맷).
+
+    WanMoveTrackToVideo.start_image는 **필수**(소스상 optional 아님) — VACE의
+    reference_image와 달리 흰 배경 전처리 불필요, 원본 참조사진 그대로 사용.
+    lightx2v cfg-step-distill LoRA를 모델에 적용해 steps=6/cfg=1.0 같은 저스텝
+    조합을 쓰는 게 전제(LoRA 없이 일반 steps/cfg로도 돌아가지만 훨씬 느림).
+    """
+    workflow = {
+        "1": {"class_type": "UnetLoaderGGUF", "inputs": {"unet_name": unet_name}},
+        "2": {
+            "class_type": "LoraLoaderModelOnly",
+            "inputs": {"model": ["1", 0], "lora_name": lora_name, "strength_model": lora_strength},
+        },
+        "3": {
+            "class_type": "CLIPLoader",
+            "inputs": {"clip_name": clip_name, "type": "wan", "device": "default"},
+        },
+        "4": {"class_type": "VAELoader", "inputs": {"vae_name": vae_name}},
+        "5": {"class_type": "CLIPVisionLoader", "inputs": {"clip_name": clip_vision_name}},
+        "6": {"class_type": "CLIPTextEncode", "inputs": {"text": positive_prompt, "clip": ["3", 0]}},
+        "7": {"class_type": "CLIPTextEncode", "inputs": {"text": negative_prompt, "clip": ["3", 0]}},
+        "8": {
+            "class_type": "LoadImage",
+            "inputs": {"image": os.path.basename(subject_image_path)},
+        },
+        "9": {"class_type": "CLIPVisionEncode", "inputs": {"clip_vision": ["5", 0], "image": ["8", 0]}},
+        "11": {
+            "class_type": "WanMoveTrackToVideo",
+            "inputs": {
+                "positive": ["6", 0],
+                "negative": ["7", 0],
+                "vae": ["4", 0],
+                "tracks": ["10", 0],
+                "strength": track_strength,
+                "width": width,
+                "height": height,
+                "length": length,
+                "batch_size": 1,
+                "start_image": ["8", 0],
+                "clip_vision_output": ["9", 0],
+            },
+        },
+        "12": {
+            "class_type": "KSampler",
+            "inputs": {
+                "model": ["2", 0],
+                "positive": ["11", 0],
+                "negative": ["11", 1],
+                "latent_image": ["11", 2],
+                "seed": seed,
+                "steps": steps,
+                "cfg": cfg,
+                "sampler_name": sampler_name,
+                "scheduler": scheduler,
+                "denoise": 1.0,
+            },
+        },
+        "13": {"class_type": "VAEDecode", "inputs": {"samples": ["12", 0], "vae": ["4", 0]}},
+        "14": {
+            "class_type": "VHS_VideoCombine",
+            "inputs": {
+                "images": ["13", 0],
+                "frame_rate": fps,
+                "filename_prefix": f"morph_{shot_id}_wanmove",
+                "format": "video/h264-mp4",
+                "pingpong": False,
+                "save_output": True,
+                "loop_count": 0,
+            },
+        },
+    }
+
+    if track_coords:
+        workflow["10"] = {
+            "class_type": "WanMoveTracksFromCoords",
+            "inputs": {"track_coords": track_coords},
+        }
+    else:
+        # 좌→우 단순 이동 궤적 — 실제 오빗 의미론 검증 전, 파이프라인 배관 자체의
+        # 동작 여부(로드/샘플링/디코드/인코딩까지 에러 없이 도는지)를 먼저 확인하는 용도.
+        workflow["10"] = {
+            "class_type": "GenerateTracks",
+            "inputs": {
+                "width": width,
+                "height": height,
+                "start_x": 0.3,
+                "start_y": 0.5,
+                "mid_x": 0.5,
+                "mid_y": 0.5,
+                "end_x": 0.7,
+                "end_y": 0.5,
+                "num_frames": length,
+                "num_tracks": 5,
+                "track_spread": 0.025,
+                "bezier": False,
+                "interpolation": "linear",
+            },
+        }
+
+    return workflow
+
+
 def write_workflow_json(out_path: str, backend: str = "sd15_animatediff", **kwargs) -> None:
-    wf = build_workflow_vace(**kwargs) if backend == "wan_vace" else build_workflow(**kwargs)
+    if backend == "wan_vace":
+        wf = build_workflow_vace(**kwargs)
+    elif backend == "wanmove_gguf":
+        wf = build_workflow_wanmove_gguf(**kwargs)
+    else:
+        wf = build_workflow(**kwargs)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(wf, f, indent=2, ensure_ascii=False)
