@@ -454,7 +454,10 @@ def build_workflow_wanmove_gguf(
             "class_type": "LoadImage",
             "inputs": {"image": os.path.basename(subject_image_path)},
         },
-        "9": {"class_type": "CLIPVisionEncode", "inputs": {"clip_vision": ["5", 0], "image": ["8", 0]}},
+        "9": {
+            "class_type": "CLIPVisionEncode",
+            "inputs": {"clip_vision": ["5", 0], "image": ["8", 0], "crop": "center"},
+        },
         "11": {
             "class_type": "WanMoveTrackToVideo",
             "inputs": {
