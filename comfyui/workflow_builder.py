@@ -33,6 +33,7 @@ VideoHelperSuite(VHS_LoadImagesPath/VHS_VideoCombine)는 그대로 재사용.
 from __future__ import annotations
 
 import json
+import math
 import os
 
 
@@ -395,6 +396,54 @@ def build_workflow_vace(
     return workflow
 
 
+def generate_orbit_track_coords(
+    num_frames: int,
+    num_tracks: int = 5,
+    arc_degrees: float = 360.0,
+    start_phase_deg: float = 0.0,
+    clockwise: bool = True,
+    center_x: float = 0.5,
+    center_y: float = 0.5,
+    radius_x: float = 0.22,
+    radius_y: float = 0.12,
+    track_spread: float = 0.025,
+) -> str:
+    """WanMoveTracksFromCoords.track_coords용 원형 오빗 2D 포인트트랙 JSON 생성.
+
+    WanMoveTrackToVideo는 3D 카메라 외부 파라미터가 아니라 화면 좌표계(0~1 정규화)
+    위의 2D 포인트 궤적만 입력으로 받는다. "카메라가 피사체 주위를 도는" 느낌을
+    내려면, 화면 중심 근처의 포인트 묶음이 전부 같은 각속도로 타원을 그리며 함께
+    회전하게 만들어 회전 시차(parallax)처럼 보이게 하는 방식을 쓴다 — 단일 직선
+    이동(GenerateTracks 기본값)과 달리 포인트마다 위상(phase_offset)과 반경 지터
+    (track_spread)만 다르고 궤도 자체는 공유한다.
+
+    radius_y를 radius_x보다 작게 둔 건 수평에 가까운 시점에서 원형 경로가 타원으로
+    투영되는 걸 흉내낸 것(진짜 원이면 카메라가 피사체를 수직으로 내려다보는 셈이 됨).
+    arc_degrees=360이면 한 바퀴를 꽉 채우고, 180 등으로 줄이면 bullet-time처럼 반바퀴만 돈다.
+    """
+    direction = 1 if clockwise else -1
+    tracks: list[list[dict[str, float]]] = []
+    for k in range(num_tracks):
+        phase_offset = math.radians(360.0 * k / num_tracks) if num_tracks > 1 else 0.0
+        # num_tracks개 포인트가 다 똑같은 반경이면 "하나의 점"처럼 보이기 쉬워
+        # 트랙마다 반경을 track_spread만큼 살짝 벌려 point-cloud가 함께 도는
+        # 것처럼 보이게 한다(기존 GenerateTracks 폴백의 track_spread와 동일 의도).
+        radius_scale = 1.0 + (k - (num_tracks - 1) / 2) * track_spread
+        frames = []
+        for f in range(num_frames):
+            t = f / max(1, num_frames - 1)
+            angle = (
+                math.radians(start_phase_deg)
+                + direction * math.radians(arc_degrees) * t
+                + phase_offset
+            )
+            x = center_x + radius_x * radius_scale * math.cos(angle)
+            y = center_y + radius_y * radius_scale * math.sin(angle)
+            frames.append({"x": round(x, 4), "y": round(y, 4)})
+        tracks.append(frames)
+    return json.dumps(tracks)
+
+
 def build_workflow_wanmove_gguf(
     shot_id: str,
     subject_image_path: str,
@@ -566,4 +615,16 @@ if __name__ == "__main__":
         depth_pass_dir="/content/render/demo_bullet_time/depth",
         subject_image_path="subject_ref.png",
         positive_prompt="cinematic photoreal subject, bullet time orbit shot, consistent identity",
+    )
+    # Wan-Move 백엔드: GenerateTracks 좌→우 placeholder 대신 실제 360도 오빗
+    # 포인트트랙(track_coords)을 생성해서 넣는다 — 2026-10-30 세션에서 다음
+    # 단계로 미뤄뒀던 작업.
+    orbit_track_coords = generate_orbit_track_coords(num_frames=81, arc_degrees=360.0)
+    write_workflow_json(
+        os.path.join(here, "workflows", "demo_rotating_long_take_wanmove.json"),
+        backend="wanmove_gguf",
+        shot_id="demo_rotating_long_take",
+        subject_image_path="subject_ref.png",
+        positive_prompt="cinematic photoreal subject, camera orbiting 360 degrees around subject, consistent identity",
+        track_coords=orbit_track_coords,
     )
