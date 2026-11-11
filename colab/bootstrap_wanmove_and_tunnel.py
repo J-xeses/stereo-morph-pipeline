@@ -75,6 +75,15 @@ if not os.path.isdir(gguf_node):
 else:
     print("ComfyUI-GGUF 노드 이미 있음, 건너뜀")
 
+# VHS_VideoCombine(최종 mp4 합성 노드)이 여기 있음 — 처음엔 빠뜨려서 /prompt가
+# "missing_node_type: VHS_VideoCombine"으로 거부됐었다(2026-11-11 실측).
+vhs_node = f"{COMFYUI}/custom_nodes/ComfyUI-VideoHelperSuite"
+if not os.path.isdir(vhs_node):
+    run(f"git clone --depth 1 https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git {vhs_node}")
+    run(f"pip install -q -r {vhs_node}/requirements.txt")
+else:
+    print("ComfyUI-VideoHelperSuite 노드 이미 있음, 건너뜀")
+
 for sub in ["unet", "text_encoders", "clip_vision", "vae", "loras"]:
     os.makedirs(f"{COMFYUI}/models/{sub}", exist_ok=True)
 
